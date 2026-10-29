@@ -59,13 +59,11 @@ jobs:
           test -n "$key_id"
           gpg --batch --armor --export "$key_id" > site/public.key
           cd site/dists/stable
-          if [ -n "${APT_GPG_PASSPHRASE:-}" ]; then
-            gpg --batch --yes --pinentry-mode loopback --passphrase "$APT_GPG_PASSPHRASE" --local-user "$key_id" --clearsign --output InRelease Release
-            gpg --batch --yes --pinentry-mode loopback --passphrase "$APT_GPG_PASSPHRASE" --local-user "$key_id" --armor --detach-sign --output Release.gpg Release
-          else
-            gpg --batch --yes --local-user "$key_id" --clearsign --output InRelease Release
-            gpg --batch --yes --local-user "$key_id" --armor --detach-sign --output Release.gpg Release
-          fi
+
+          # Feed the passphrase through stdin and force loopback pinentry so GPG
+          # never tries to open an interactive prompt on the Actions runner.
+          printf '%s\n' "${APT_GPG_PASSPHRASE:-}" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 --local-user "$key_id" --clearsign --output InRelease Release
+          printf '%s\n' "${APT_GPG_PASSPHRASE:-}" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 --local-user "$key_id" --armor --detach-sign --output Release.gpg Release
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

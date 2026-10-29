@@ -167,13 +167,18 @@ sudo zypper install conky
 
 ### 🌀 Debian / Ubuntu / Linux Mint / Pop!_OS
 
-```bash
-wget https://github.com/almezali/conkio/releases/download/1.0.1/conkio_1.0.1_x86_64.deb
-sudo apt install ./conkio_1.0.1_x86_64.deb
+**Install from the APT repository** (after the repository has been published):
 
-# Conky itself is required (conky-all enables the full feature set)
-sudo apt install conky-all
+```bash
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://almezali.github.io/conkio/public.key | sudo gpg --dearmor --yes -o /etc/apt/keyrings/conkio.gpg
+sudo chmod 0644 /etc/apt/keyrings/conkio.gpg
+echo "deb [arch=amd64,arm64 signed-by=/etc/apt/keyrings/conkio.gpg] https://almezali.github.io/conkio stable main" | sudo tee /etc/apt/sources.list.d/conkio.list >/dev/null
+sudo apt update
+sudo apt install conkio conky-all
 ```
+
+For repository setup and maintainer instructions, see [docs/apt-repository.md](docs/apt-repository.md). The direct `.deb` packages remain available from the [latest release](https://github.com/almezali/conkio/releases/latest).
 
 ### 📦 AppImage (any distribution)
 

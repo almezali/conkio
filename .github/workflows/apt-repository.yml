@@ -4,6 +4,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Exact GitHub release tag to publish (for example v1.0.1)"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -24,15 +29,17 @@ jobs:
       - name: Download Debian packages
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.release_tag }}
         run: |
           set -euo pipefail
-          tag="${{ github.event.release.tag_name }}"
-          if [ -z "$tag" ]; then
-            tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)"
-          fi
+          tag="$RELEASE_TAG"
+          test -n "$tag" || { echo "A release tag must be specified"; exit 1; }
           mkdir -p site/pool
           gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*.deb' --dir site/pool
-          test -n "$(find site/pool -maxdepth 1 -name '*.deb' -print -quit)"
+          test -n "$(find site/pool -maxdepth 1 -name '*.deb' -print -quit)" || {
+            echo "No .deb packages found in release $tag"
+            exit 1
+          }
 
       - name: Generate package indexes
         run: |

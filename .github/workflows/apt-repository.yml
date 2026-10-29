@@ -3,6 +3,10 @@ name: Publish APT repository
 on:
   release:
     types: [published]
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/apt-repository.yml"
   workflow_dispatch:
     inputs:
       release_tag:

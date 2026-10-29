@@ -37,7 +37,11 @@ jobs:
         run: |
           set -euo pipefail
           tag="$RELEASE_TAG"
-          test -n "$tag" || { echo "A release tag must be specified"; exit 1; }
+          if [ -z "$tag" ]; then
+            tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)"
+          fi
+          test -n "$tag" || { echo "Could not determine a release tag"; exit 1; }
+          echo "Publishing APT repository from release: $tag"
           mkdir -p site/pool
           gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*.deb' --dir site/pool
           test -n "$(find site/pool -maxdepth 1 -name '*.deb' -print -quit)" || {

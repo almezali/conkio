@@ -45,11 +45,23 @@ jobs:
         run: |
           set -euo pipefail
           cd site
-          for arch in amd64 arm64; do
-            mkdir -p "dists/stable/main/binary-$arch"
-            dpkg-scanpackages --arch "$arch" pool /dev/null > "dists/stable/main/binary-$arch/Packages"
-            gzip -9fk "dists/stable/main/binary-$arch/Packages"
-          done
+          mkdir -p dists/stable/main/binary-amd64 dists/stable/main/binary-arm64
+
+          # Keep same-version packages for different architectures in the index.
+          dpkg-scanpackages --multiversion pool /dev/null > /tmp/Packages
+          grep -q '^Package: conkio$' /tmp/Packages || {
+            echo "ERROR: The generated package index does not contain Conkio."
+            echo "Inspect the Debian control metadata in the release .deb files."
+            exit 1
+          }
+
+          # Publish the full index at both architecture paths. APT selects the
+          # package whose Architecture field matches the system architecture.
+          install -m 0644 /tmp/Packages dists/stable/main/binary-amd64/Packages
+          install -m 0644 /tmp/Packages dists/stable/main/binary-arm64/Packages
+          gzip -9fk dists/stable/main/binary-amd64/Packages
+          gzip -9fk dists/stable/main/binary-arm64/Packages
+
           apt-ftparchive -o APT::FTPArchive::Release::Origin="Conkio" -o APT::FTPArchive::Release::Label="Conkio APT" -o APT::FTPArchive::Release::Suite="stable" -o APT::FTPArchive::Release::Codename="stable" -o APT::FTPArchive::Release::Architectures="amd64 arm64" -o APT::FTPArchive::Release::Components="main" release dists/stable > dists/stable/Release
 
       - name: Sign repository metadata

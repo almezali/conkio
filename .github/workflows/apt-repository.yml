@@ -47,7 +47,7 @@ jobs:
           cd site
           for arch in amd64 arm64; do
             mkdir -p "dists/stable/main/binary-$arch"
-            dpkg-scanpackages pool /dev/null 2>/dev/null | awk -v arch="$arch" 'BEGIN { RS=""; ORS="\n\n" } { n = split($0, lines, "\n"); for (i = 1; i <= n; i++) if (lines[i] == "Architecture: " arch) { print; break } }' > "dists/stable/main/binary-$arch/Packages"
+            dpkg-scanpackages --arch "$arch" pool /dev/null > "dists/stable/main/binary-$arch/Packages"
             gzip -9fk "dists/stable/main/binary-$arch/Packages"
           done
           apt-ftparchive -o APT::FTPArchive::Release::Origin="Conkio" -o APT::FTPArchive::Release::Label="Conkio APT" -o APT::FTPArchive::Release::Suite="stable" -o APT::FTPArchive::Release::Codename="stable" -o APT::FTPArchive::Release::Architectures="amd64 arm64" -o APT::FTPArchive::Release::Components="main" release dists/stable > dists/stable/Release

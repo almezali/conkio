@@ -1,0 +1,34 @@
+[package]
+name = "conkio"
+version = "1.0.1"
+edition = "2021"
+description = "A modern Linux Conky theme manager"
+license = "GPL-3.0-or-later"
+default-run = "conkio"
+
+[[bin]]
+name = "conkio"
+path = "src/main.rs"
+
+[dependencies]
+slint = "1.5.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+dirs = "5.0"
+walkdir = "2.5"
+zip = "0.6"
+tar = "0.4"
+flate2 = "1.0"
+tempfile = "3.10"
+rfd = "0.14"
+regex = "1.11"
+ksni = { version = "0.3", default-features = false, features = ["blocking", "async-io"] }
+ureq = { version = "2.12", features = ["json"] }
+sha2 = "0.10"
+url = "2"
+image = "0.25"
+bzip2 = "0.5"
+libc = "0.2"
+
+[build-dependencies]
+slint-build = "1.5.1"

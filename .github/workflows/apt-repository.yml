@@ -1,0 +1,79 @@
+name: Publish APT repository
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: conkio-apt-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install repository tools
+        run: sudo apt-get update && sudo apt-get install -y dpkg-dev apt-utils gnupg
+
+      - name: Download Debian packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.release.tag_name }}"
+          if [ -z "$tag" ]; then
+            tag="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)"
+          fi
+          mkdir -p site/pool
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern '*.deb' --dir site/pool
+          test -n "$(find site/pool -maxdepth 1 -name '*.deb' -print -quit)"
+
+      - name: Generate package indexes
+        run: |
+          set -euo pipefail
+          cd site
+          for arch in amd64 arm64; do
+            mkdir -p "dists/stable/main/binary-$arch"
+            dpkg-scanpackages pool /dev/null 2>/dev/null | awk -v arch="$arch" 'BEGIN { RS=""; ORS="\n\n" } $0 ~ ("Architecture: " arch "([\n]|$)") { print }' > "dists/stable/main/binary-$arch/Packages"
+            gzip -9fk "dists/stable/main/binary-$arch/Packages"
+          done
+          apt-ftparchive -o APT::FTPArchive::Release::Origin="Conkio" -o APT::FTPArchive::Release::Label="Conkio APT" -o APT::FTPArchive::Release::Suite="stable" -o APT::FTPArchive::Release::Codename="stable" -o APT::FTPArchive::Release::Architectures="amd64 arm64" -o APT::FTPArchive::Release::Components="main" release dists/stable > dists/stable/Release
+
+      - name: Sign repository metadata
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          APT_GPG_PASSPHRASE: ${{ secrets.APT_GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          test -n "$APT_GPG_PRIVATE_KEY" || { echo "Set APT_GPG_PRIVATE_KEY in repository Actions secrets"; exit 1; }
+          export GNUPGHOME="$RUNNER_TEMP/conkio-gnupg"
+          mkdir -m 700 -p "$GNUPGHOME"
+          printf '%s' "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
+          key_id="$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1=="fpr" {print $10; exit}')"
+          test -n "$key_id"
+          gpg --batch --armor --export "$key_id" > site/public.key
+          cd site/dists/stable
+          if [ -n "${APT_GPG_PASSPHRASE:-}" ]; then
+            gpg --batch --yes --pinentry-mode loopback --passphrase "$APT_GPG_PASSPHRASE" --local-user "$key_id" --clearsign --output InRelease Release
+            gpg --batch --yes --pinentry-mode loopback --passphrase "$APT_GPG_PASSPHRASE" --local-user "$key_id" --armor --detach-sign --output Release.gpg Release
+          else
+            gpg --batch --yes --local-user "$key_id" --clearsign --output InRelease Release
+            gpg --batch --yes --local-user "$key_id" --armor --detach-sign --output Release.gpg Release
+          fi
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload repository artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy Pages
+        uses: actions/deploy-pages@v4

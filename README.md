@@ -126,7 +126,7 @@ Grab the package for your distribution from the [**latest release**](https://git
 | **Arch Linux** · Manjaro · EndeavourOS | x86_64 | [`conkio-1.0.1-2-x86_64.pkg.tar.zst`](https://github.com/almezali/conkio/releases/download/1.0.1/conkio-1.0.1-2-x86_64.pkg.tar.zst) |
 | | aarch64 | [`conkio-1.0.1-2-aarch64.pkg.tar.zst`](https://github.com/almezali/conkio/releases/download/1.0.1/conkio-1.0.1-2-aarch64.pkg.tar.zst) |
 | **Fedora** · RHEL family · openSUSE | x86_64 | [`conkio-1.0.1-2.x86_64.rpm`](https://github.com/almezali/conkio/releases/download/1.0.1/conkio-1.0.1-2.x86_64.rpm) |
-| | aarch64 | [`conkio-1.0.1-1.aarch64.rpm`](https://github.com/almezali/conkio/releases/download/1.0.1/conkio-1.0.1-2.aarch64.rpm) |
+| | aarch64 | [`conkio-1.0.1-2.aarch64.rpm`](https://github.com/almezali/conkio/releases/download/1.0.1/conkio-1.0.1-2.aarch64.rpm) |
 | **Debian** · Ubuntu · Linux Mint · Pop!_OS | x86_64 | [`conkio_1.0.1-2_x86_64.deb`](https://github.com/almezali/conkio/releases/download/1.0.1/conkio_1.0.1-2_x86_64.deb) |
 | | aarch64 | [`conkio_1.0.1-2_aarch64.deb`](https://github.com/almezali/conkio/releases/download/1.0.1/conkio_1.0.1-2_aarch64.deb) |
 | **Any distribution** (portable) | x86_64 | [`Conkio-x86_64.AppImage`](https://github.com/almezali/conkio/releases/download/1.0.1/Conkio-x86_64.AppImage) |

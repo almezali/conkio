@@ -6,6 +6,13 @@
 
 **A modern, fast and beautiful Conky theme manager for Linux — written in Rust with a native Slint interface.**
 
+<a href="https://alternativeto.net/software/conkio/about/" target="_blank" rel="noopener noreferrer">
+  <img src="https://alternativeto.net/static/badges/badge-compact-color.svg"
+       alt="Conkio | AlternativeTo"
+       width="244" height="79" />
+</a>
+
+
 ## 🌍 Find Conkio
 
 Conkio is also listed on AlternativeTo!

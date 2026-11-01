@@ -29,7 +29,6 @@ Conkio is also listed on AlternativeTo!
 [![Slint](https://img.shields.io/badge/UI-Slint-2379F4?style=for-the-badge&labelColor=0D1117)](https://slint.dev/)
 [![Platform](https://img.shields.io/badge/Platform-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black&labelColor=0D1117)](#-installation)
 
-[![Downloads](https://img.shields.io/github/downloads/almezali/conkio/total?style=flat-square&logo=github&label=Downloads&color=success)](https://github.com/almezali/conkio/releases)
 [![Stars](https://img.shields.io/github/stars/almezali/conkio?style=flat-square&logo=github&color=yellow)](https://github.com/almezali/conkio/stargazers)
 [![Issues](https://img.shields.io/github/issues/almezali/conkio?style=flat-square&color=orange)](https://github.com/almezali/conkio/issues)
 [![Last commit](https://img.shields.io/github/last-commit/almezali/conkio?style=flat-square&color=blueviolet)](https://github.com/almezali/conkio/commits)
@@ -39,6 +38,7 @@ Conkio is also listed on AlternativeTo!
 ![Fedora](https://img.shields.io/badge/Fedora-supported-51A2DA?style=flat-square&logo=fedora&logoColor=white)
 ![AppImage](https://img.shields.io/badge/AppImage-available-orange?style=flat-square&logo=appimage&logoColor=white)
 
+[![Total Downloads](https://img.shields.io/github/downloads/almezali/conkio/total?style=for-the-badge&logo=github&logoColor=white&label=TOTAL%20DOWNLOADS&color=00BFA6)](https://github.com/almezali/conkio/releases)
 <br>
 
 

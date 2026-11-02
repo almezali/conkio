@@ -52,6 +52,13 @@ Conkio is also listed on AlternativeTo!
 
 ---
 
+<div align="center">
+  <video src="https://github.com/user-attachments/assets/7718a600-cff1-49ed-b82a-44b84e493153"
+         width="70%"
+         controls>
+  </video>
+</div>
+
 ## 🌟 Overview
 
 **Conkio** takes the pain out of managing [Conky](https://github.com/brndnmtthws/conky) themes. Instead of juggling folders, editing config files by hand and hunting for broken scripts, you get a single polished application to **discover, run, customize, repair and share** your desktop widgets.

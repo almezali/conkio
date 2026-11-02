@@ -53,7 +53,7 @@ Conkio is also listed on AlternativeTo!
 ---
 
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/7718a600-cff1-49ed-b82a-44b84e493153"
+  <video src="https://github.com/user-attachments/assets/3474efbe-e205-45bc-a3e9-48f655ad709d"
          width="70%"
          controls>
   </video>

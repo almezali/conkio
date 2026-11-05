@@ -1,0 +1,134 @@
+name: Build Linux binaries
+
+on:
+  push:
+    tags:
+      - "*"
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag to build (for example 1.0.3)"
+        required: true
+        default: "1.0.3"
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: conkio-build-${{ github.event.release.tag_name || inputs.release_tag || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: amd64
+            runner: ubuntu-24.04
+            asset: conkio-amd64
+            rust_target: x86_64-unknown-linux-gnu
+          - name: arm64
+            runner: ubuntu-24.04-arm
+            asset: conkio-arm64
+            rust_target: aarch64-unknown-linux-gnu
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Resolve release tag
+        id: tag
+        env:
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.release_tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          tag="${EVENT_TAG:-${INPUT_TAG:-$REF_NAME}}"
+          test -n "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config curl ca-certificates \
+            libfontconfig1-dev libfreetype6-dev \
+            libx11-dev libx11-xcb-dev libxcb1-dev \
+            libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev \
+            libxrandr-dev libxcursor-dev libxi-dev libxinerama-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev \
+            libwayland-dev libssl-dev libbz2-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Checkout release source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+
+      - name: Build optimized executable
+        run: |
+          set -euo pipefail
+          cargo build --release --bin conkio
+          install -D -m 0755 target/release/conkio "dist/${{ matrix.asset }}"
+          strip --strip-unneeded "dist/${{ matrix.asset }}" || true
+          file "dist/${{ matrix.asset }}"
+          test -x "dist/${{ matrix.asset }}"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Attach binaries to GitHub Release
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Resolve release tag
+        id: tag
+        env:
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.release_tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          tag="${EVENT_TAG:-${INPUT_TAG:-$REF_NAME}}"
+          test -n "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Download both binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: conkio-*
+          merge-multiple: true
+
+      - name: Create release if needed and upload binaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          test -s dist/conkio-amd64
+          test -s dist/conkio-arm64
+          if ! gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Conkio $RELEASE_TAG" \
+              --generate-notes
+          fi
+          gh release upload "$RELEASE_TAG" \
+            dist/conkio-amd64 dist/conkio-arm64 \
+            --repo "$GITHUB_REPOSITORY" --clobber

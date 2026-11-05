@@ -453,12 +453,9 @@ component PageCard inherits Rectangle {
 // ─────────────────────────────────────────────────────────────
 //  Marketplace window (mirrors the Conky Manager GTK marketplace)
 // ─────────────────────────────────────────────────────────────
-export component MarketplaceWindow inherits Window {
-    title: "Theme Marketplace";
-    min-width: 560px;
-    min-height: 480px;
-    preferred-width: 1040px;
-    preferred-height: 720px;
+component MarketplaceWindow inherits Rectangle {
+    width: 100%;
+    height: 100%;
     background: Pal.bg;
 
     in-out property <bool> light-mode <=> Pal.light-mode;
@@ -604,12 +601,9 @@ export component MarketplaceWindow inherits Window {
 // ─────────────────────────────────────────────────────────────
 //  Download progress window
 // ─────────────────────────────────────────────────────────────
-export component DownloadWindow inherits Window {
-    title: "Downloading Theme";
-    min-width: 420px;
-    min-height: 200px;
-    preferred-width: 500px;
-    preferred-height: 220px;
+component DownloadWindow inherits Rectangle {
+    width: 100%;
+    height: 100%;
     background: Pal.bg;
 
     in-out property <bool> light-mode <=> Pal.light-mode;
@@ -649,12 +643,9 @@ export component DownloadWindow inherits Window {
 // ─────────────────────────────────────────────────────────────
 //  Settings window
 // ─────────────────────────────────────────────────────────────
-export component SettingsWindow inherits Window {
-    title: "Conkio Settings";
-    min-width: 440px;
-    min-height: 440px;
-    preferred-width: 620px;
-    preferred-height: 540px;
+component SettingsWindow inherits Rectangle {
+    width: 100%;
+    height: 100%;
     background: Pal.bg;
 
     in-out property <bool> light-mode <=> Pal.light-mode;
@@ -774,12 +765,9 @@ export component SettingsWindow inherits Window {
 // ─────────────────────────────────────────────────────────────
 //  About window
 // ─────────────────────────────────────────────────────────────
-export component AboutWindow inherits Window {
-    title: "About Conkio";
-    min-width: 380px;
-    min-height: 340px;
-    preferred-width: 460px;
-    preferred-height: 380px;
+component AboutWindow inherits Rectangle {
+    width: 100%;
+    height: 100%;
     background: Pal.bg;
 
     in-out property <bool> light-mode <=> Pal.light-mode;
@@ -803,18 +791,15 @@ export component AboutWindow inherits Window {
         }
         Text { text: "Conkio"; color: Pal.text; font-size: 34px; font-weight: 800; horizontal-alignment: center; }
         Text { text: "Your Desktop, Your Style."; color: Pal.accent; font-size: 14px; font-weight: 600; horizontal-alignment: center; }
-        Text { text: "A modern Linux manager for Conky themes.\nRust + Slint edition 1.0.1"; color: Pal.text-dim; font-size: 12px; horizontal-alignment: center; wrap: word-wrap; }
+        Text { text: "A modern Linux manager for Conky themes.\nRust + Slint edition 1.0.3"; color: Pal.text-dim; font-size: 12px; horizontal-alignment: center; wrap: word-wrap; }
         Rectangle { vertical-stretch: 1; }
         HorizontalLayout { alignment: center; AppButton { text: "Close"; kind: "primary"; clicked => { root.close-about(); } } }
     }
 }
 
-export component PromptWindow inherits Window {
-    title: root.title-text;
-    min-width: 360px;
-    min-height: 180px;
-    preferred-width: 420px;
-    preferred-height: 200px;
+component PromptWindow inherits Rectangle {
+    width: 100%;
+    height: 100%;
     background: Pal.bg;
     in-out property <bool> light-mode <=> Pal.light-mode;
     in property <string> title-text: "Name";
@@ -919,6 +904,64 @@ export component ConkioWindow inherits Window {
     callback repair-theme;
     callback files-dropped([string]);
     callback toggle-maximize;
+    in-out property <bool> drop-active: false;
+    in-out property <bool> show-marketplace: false;
+    in-out property <bool> show-download: false;
+    in-out property <bool> show-settings: false;
+    in-out property <bool> show-about-overlay: false;
+    in-out property <bool> show-prompt: false;
+    in property <[OnlineProduct]> market-products: [];
+    in-out property <string> market-status-text: "Ready. Select a store or search for a theme.";
+    in-out property <bool> market-loading: false;
+    in-out property <bool> market-can-load-more: false;
+    in-out property <int> market-selected-index: -1;
+    in-out property <int> market-store-index: 0;
+    in-out property <int> market-sort-index: 0;
+    in-out property <int> market-category-index: 0;
+    in-out property <string> market-query;
+    in-out property <string> market-detail-title: "Select a theme";
+    in-out property <string> market-detail-desc: "Choose a result to inspect its description, author, version, and store page.";
+    in-out property <string> market-detail-meta;
+    in-out property <string> market-link-label: "Open store in browser";
+    in-out property <string> market-link-url;
+    in-out property <image> market-preview;
+    in-out property <bool> market-has-preview: false;
+    callback market-store-changed(int);
+    callback market-sort-changed(int);
+    callback market-category-changed(int);
+    callback market-search(string);
+    callback market-search-edited(string);
+    callback market-select-product(int);
+    callback market-load-more;
+    callback market-install-selected;
+    callback market-open-link(string);
+    callback close-marketplace;
+    in-out property <string> dl-item-title;
+    in-out property <float> dl-progress: 0;
+    in-out property <string> dl-status: "Connecting…";
+    callback download-cancel;
+    in property <string> theme-directory;
+    in-out property <string> layer: "above";
+    in-out property <string> window-type: "dock";
+    in-out property <string> smoothness: "balanced";
+    in-out property <string> desktop-preset: "auto";
+    in-out property <int> nice-level: 10;
+    in-out property <int> max-instances: 8;
+    in-out property <int> preview-seconds: 5;
+    in-out property <bool> login-autostart;
+    in-out property <bool> minimize-to-tray;
+    callback close-settings;
+    callback save-settings;
+    callback appearance-changed(bool);
+    callback add-theme-folder;
+    callback login-toggled(bool);
+    callback tray-toggled(bool);
+    callback close-about;
+    in-out property <string> title-text: "Name";
+    in-out property <string> prompt-label: "Name";
+    in-out property <string> prompt-value;
+    callback prompt-accepted(string);
+    callback prompt-cancelled;
 
     keyboard-focus := FocusScope {
         width: 1px;
@@ -1308,6 +1351,147 @@ export component ConkioWindow inherits Window {
                 }
             }
         }
+    }
 
-}
+    if root.drop-active : Rectangle {
+        width: 100%;
+        height: 100%;
+        background: #22d3ee22;
+        border-width: 3px;
+        border-color: Pal.accent;
+        Text {
+            text: "Drop a Conky theme folder or archive";
+            color: Pal.accent;
+            font-size: 20px;
+            font-weight: 800;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+        }
+    }
+    if root.show-marketplace : Rectangle {
+        width: 100%; height: 100%;
+        background: #020617cc;
+        TouchArea { clicked => { root.show-marketplace = false; root.close-marketplace(); } }
+        Rectangle {
+            x: 20px; y: 20px; width: parent.width - 40px; height: parent.height - 40px;
+            border-radius: 18px; clip: true; background: Pal.bg;
+            border-width: 1px; border-color: Pal.border;
+            TouchArea {}
+            MarketplaceWindow {
+                products: root.market-products;
+                status-text: root.market-status-text;
+                loading: root.market-loading;
+                can-load-more: root.market-can-load-more;
+                selected-index <=> root.market-selected-index;
+                store-index <=> root.market-store-index;
+                sort-index <=> root.market-sort-index;
+                category-index <=> root.market-category-index;
+                query <=> root.market-query;
+                detail-title: root.market-detail-title;
+                detail-desc: root.market-detail-desc;
+                detail-meta: root.market-detail-meta;
+                link-label: root.market-link-label;
+                link-url: root.market-link-url;
+                preview: root.market-preview;
+                has-preview: root.market-has-preview;
+                store-changed(i) => { root.market-store-changed(i); }
+                sort-changed(i) => { root.market-sort-changed(i); }
+                category-changed(i) => { root.market-category-changed(i); }
+                search(t) => { root.market-search(t); }
+                search-edited(t) => { root.market-search-edited(t); }
+                select-product(i) => { root.market-select-product(i); }
+                load-more => { root.market-load-more(); }
+                install-selected => { root.market-install-selected(); }
+                open-link(u) => { root.market-open-link(u); }
+                close-marketplace => { root.show-marketplace = false; root.close-marketplace(); }
+            }
+        }
+    }
+    if root.show-download : Rectangle {
+        width: 100%; height: 100%;
+        background: #020617cc;
+        Rectangle {
+            x: (parent.width - min(parent.width - 48px, 520px)) / 2;
+            y: (parent.height - 240px) / 2;
+            width: min(parent.width - 48px, 520px);
+            height: 240px;
+            border-radius: 18px; clip: true; background: Pal.bg;
+            border-width: 1px; border-color: Pal.border;
+            DownloadWindow {
+                item-title: root.dl-item-title;
+                progress: root.dl-progress;
+                status-text: root.dl-status;
+                cancel => { root.download-cancel(); }
+            }
+        }
+    }
+    if root.show-settings : Rectangle {
+        width: 100%; height: 100%;
+        background: #020617cc;
+        TouchArea { clicked => { root.show-settings = false; root.close-settings(); } }
+        Rectangle {
+            x: (parent.width - min(parent.width - 40px, 680px)) / 2;
+            y: 24px;
+            width: min(parent.width - 40px, 680px);
+            height: parent.height - 48px;
+            border-radius: 18px; clip: true; background: Pal.bg;
+            border-width: 1px; border-color: Pal.border;
+            TouchArea {}
+            SettingsWindow {
+                theme-directory: root.theme-directory;
+                desktop-info: root.desktop-info;
+                layer <=> root.layer;
+                window-type <=> root.window-type;
+                smoothness <=> root.smoothness;
+                desktop-preset <=> root.desktop-preset;
+                nice-level <=> root.nice-level;
+                max-instances <=> root.max-instances;
+                preview-seconds <=> root.preview-seconds;
+                login-autostart <=> root.login-autostart;
+                minimize-to-tray <=> root.minimize-to-tray;
+                close-settings => { root.show-settings = false; root.close-settings(); }
+                save-settings => { root.save-settings(); }
+                appearance-changed(v) => { root.appearance-changed(v); }
+                add-theme-folder => { root.add-theme-folder(); }
+                login-toggled(v) => { root.login-toggled(v); }
+                tray-toggled(v) => { root.tray-toggled(v); }
+            }
+        }
+    }
+    if root.show-about-overlay : Rectangle {
+        width: 100%; height: 100%;
+        background: #020617cc;
+        TouchArea { clicked => { root.show-about-overlay = false; root.close-about(); } }
+        Rectangle {
+            x: (parent.width - min(parent.width - 48px, 460px)) / 2;
+            y: (parent.height - min(parent.height - 48px, 420px)) / 2;
+            width: min(parent.width - 48px, 460px);
+            height: min(parent.height - 48px, 420px);
+            border-radius: 18px; clip: true; background: Pal.bg;
+            border-width: 1px; border-color: Pal.border;
+            TouchArea {}
+            AboutWindow { close-about => { root.show-about-overlay = false; root.close-about(); } }
+        }
+    }
+    if root.show-prompt : Rectangle {
+        width: 100%; height: 100%;
+        background: #020617cc;
+        TouchArea { clicked => { root.show-prompt = false; root.prompt-cancelled(); } }
+        Rectangle {
+            x: (parent.width - min(parent.width - 48px, 440px)) / 2;
+            y: (parent.height - 220px) / 2;
+            width: min(parent.width - 48px, 440px);
+            height: 220px;
+            border-radius: 18px; clip: true; background: Pal.bg;
+            border-width: 1px; border-color: Pal.border;
+            TouchArea {}
+            PromptWindow {
+                title-text: root.title-text;
+                prompt-label: root.prompt-label;
+                prompt-value <=> root.prompt-value;
+                accepted(v) => { root.show-prompt = false; root.prompt-accepted(v); }
+                cancelled => { root.show-prompt = false; root.prompt-cancelled(); }
+            }
+        }
+    }
 }

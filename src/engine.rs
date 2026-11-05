@@ -12,7 +12,7 @@ use std::{
 };
 use walkdir::WalkDir;
 
-pub const VERSION: &str = "1.0.2";
+pub const VERSION: &str = "1.0.3";
 pub const APP_DIR_NAME: &str = "conky-manager";
 pub const MAX_ARCHIVE_BYTES: u64 = 512 * 1024 * 1024;
 pub const MAX_ARCHIVE_FILES: usize = 4000;
@@ -232,6 +232,21 @@ pub fn detect_desktop_environment() -> String {
         env::var("XDG_SESSION_DESKTOP").unwrap_or_default()
     )
     .to_lowercase();
+    if env::var_os("HYPRLAND_INSTANCE_SIGNATURE").is_some() || env::var_os("HYPRLAND_CMD").is_some() {
+        return "hyprland".into();
+    }
+    if env::var_os("NIRI_SOCKET").is_some() || env::var_os("NIRI_SESSION").is_some() {
+        return "niri".into();
+    }
+    if env::var_os("COSMIC_SESSION").is_some()
+        || env::var_os("COSMIC_DATA_DIR").is_some()
+        || env::var("XDG_CURRENT_DESKTOP").unwrap_or_default().to_lowercase().contains("cosmic")
+    {
+        return "cosmic".into();
+    }
+    if env::var_os("SWAYSOCK").is_some() {
+        return "sway".into();
+    }
     for (key, val) in [
         ("hyprland", "hyprland"),
         ("niri", "niri"),
@@ -256,7 +271,7 @@ pub fn display_server_kind() -> String {
     let sess = env::var("XDG_SESSION_TYPE")
         .unwrap_or_default()
         .to_lowercase();
-    if sess == "wayland" {
+    if sess == "wayland" || (sess.is_empty() && env::var_os("WAYLAND_DISPLAY").is_some()) {
         if env::var("WAYLAND_DISPLAY").is_ok() && env::var("DISPLAY").is_ok() {
             return "xwayland".into();
         }
@@ -278,6 +293,101 @@ pub fn compositor_label() -> String {
         env::var("XDG_SESSION_TYPE").unwrap_or_else(|_| "unknown".into()),
         display_server_kind()
     )
+}
+
+pub fn apply_compositor_support() {
+    let de = detect_desktop_environment();
+    match de.as_str() {
+        "hyprland" => apply_hyprland_rules(),
+        "niri" => {}
+        "cosmic" => ensure_xwayland_display(),
+        _ => {}
+    }
+    if display_server_kind() != "x11" {
+        ensure_xwayland_display();
+    }
+}
+
+fn ensure_xwayland_display() {
+    if env::var_os("DISPLAY").is_none() {
+        for candidate in [":0", ":1"] {
+            if Path::new(&format!("/tmp/.X11-unix/X{}", candidate.trim_start_matches(':'))).exists()
+            {
+                env::set_var("DISPLAY", candidate);
+                break;
+            }
+        }
+        if env::var_os("DISPLAY").is_none() {
+            env::set_var("DISPLAY", ":0");
+        }
+    }
+}
+
+fn apply_hyprland_rules() {
+    if !which("hyprctl") {
+        return;
+    }
+    for target in ["class:^(conky)$", "class:^(Conky)$", "title:^(conky)$", "title:^(Conky)$"] {
+        for rule in ["float", "pin", "noborder", "noshadow", "nofocus", "suppressevent maximize"] {
+            let _ = Command::new("hyprctl")
+                .args(["keyword", "windowrulev2", &format!("{rule},{target}")])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+    }
+}
+
+pub fn float_conky_on_compositor() {
+    let de = detect_desktop_environment();
+    match de.as_str() {
+        "hyprland" => {
+            let _ = Command::new("hyprctl")
+                .args(["dispatch", "pin", "class:^(conky)$"])
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
+        "niri" => float_niri_conky_windows(),
+        _ => {}
+    }
+}
+
+fn float_niri_conky_windows() {
+    if !which("niri") {
+        return;
+    }
+    thread::sleep(Duration::from_millis(250));
+    let Ok(out) = Command::new("niri").args(["msg", "-j", "windows"]).output() else { return };
+    if !out.status.success() {
+        return;
+    }
+    let Ok(v) = serde_json::from_slice::<serde_json::Value>(&out.stdout) else { return };
+    let Some(arr) = v.as_array() else { return };
+    for win in arr {
+        let app = win.get("app_id").and_then(|x| x.as_str()).unwrap_or("").to_lowercase();
+        let title = win.get("title").and_then(|x| x.as_str()).unwrap_or("").to_lowercase();
+        if !(app.contains("conky") || title.contains("conky")) {
+            continue;
+        }
+        let Some(id) = win.get("id").and_then(|x| x.as_u64()) else { continue };
+        if win.get("is_floating").and_then(|x| x.as_bool()) == Some(true) {
+            continue;
+        }
+        for args in [
+            vec!["msg".into(), "action".into(), "move-window-to-floating".into(), "--id".into(), id.to_string()],
+            vec!["msg".into(), "action".into(), "move-window-to-floating".into(), "--window-id".into(), id.to_string()],
+        ] {
+            let status = Command::new("niri")
+                .args(&args)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+            if status.map(|s| s.success()).unwrap_or(false) {
+                break;
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -403,7 +513,8 @@ pub fn resolve_runtime_settings(user: Settings) -> Settings {
     let (layer, wtype) = match de.as_str() {
         "kde" => ("above", "dock"),
         "hyprland" | "niri" | "sway" => ("above", "override"),
-        "gnome" | "xfce" | "cinnamon" | "mate" | "lxqt" | "lxde" | "cosmic" => ("below", "desktop"),
+        "cosmic" => ("above", "normal"),
+        "gnome" | "xfce" | "cinnamon" | "mate" | "lxqt" | "lxde" => ("below", "desktop"),
         _ => ("above", "dock"),
     };
     if merged.desktop_preset == "auto" {
@@ -645,14 +756,80 @@ pub fn read_proc_cmdline(pid: i32) -> String {
         .map(|b| String::from_utf8_lossy(&b).replace('\0', " "))
         .unwrap_or_default()
 }
+fn read_proc_cwd(pid: i32) -> PathBuf {
+    fs::read_link(format!("/proc/{pid}/cwd")).unwrap_or_else(|_| home())
+}
+fn read_proc_environ(pid: i32) -> Vec<(String, String)> {
+    fs::read(format!("/proc/{pid}/environ"))
+        .unwrap_or_default()
+        .split(|b| *b == 0)
+        .filter_map(|item| {
+            let text = String::from_utf8_lossy(item);
+            let (key, value) = text.split_once('=')?;
+            Some((key.to_string(), value.to_string()))
+        })
+        .collect()
+}
+fn read_proc_open_files(pid: i32) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    let Ok(entries) = fs::read_dir(format!("/proc/{pid}/fd")) else { return files };
+    for entry in entries.flatten() {
+        if let Ok(path) = fs::read_link(entry.path()) {
+            if path.is_file() { files.push(path); }
+        }
+    }
+    files
+}
+fn is_conky_binary_name(name: &str) -> bool {
+    let n = name.to_lowercase();
+    n == "conky" || n.starts_with("conky-")
+}
+fn read_proc_comm(pid: i32) -> String {
+    fs::read_to_string(format!("/proc/{pid}/comm"))
+        .unwrap_or_default()
+        .trim()
+        .to_lowercase()
+}
+fn proc_is_conky(pid: i32, cmdline: &str) -> bool {
+    if pid == std::process::id() as i32 {
+        return false;
+    }
+    if is_conky_binary_name(&read_proc_comm(pid)) {
+        return true;
+    }
+    let exe_name = fs::read_link(format!("/proc/{pid}/exe"))
+        .ok()
+        .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase()))
+        .unwrap_or_default();
+    if is_conky_binary_name(&exe_name) {
+        return true;
+    }
+    let wrappers = ["nice", "ionice", "env", "sudo", "catchsegv", "stdbuf"];
+    cmdline.split_whitespace().any(|arg| {
+        if wrappers.iter().any(|w| arg.eq_ignore_ascii_case(w)) || arg.starts_with('-') {
+            return false;
+        }
+        let name = Path::new(arg)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_lowercase())
+            .unwrap_or_default();
+        is_conky_binary_name(&name)
+    })
+}
 pub fn scan_conky_processes() -> Vec<(i32, String)> {
     let mut out = Vec::new();
+    let mut seen = HashSet::new();
+    let mut add = |pid: i32, cmdline: String| {
+        if pid > 0 && seen.insert(pid) && proc_is_conky(pid, &cmdline) {
+            out.push((pid, cmdline));
+        }
+    };
     let Ok(entries) = fs::read_dir("/proc") else {
         if let Ok(o) = Command::new("pgrep").args(["-af", "conky"]).output() {
             for line in String::from_utf8_lossy(&o.stdout).lines() {
                 let mut it = line.split_whitespace();
                 if let Some(pid) = it.next().and_then(|s| s.parse().ok()) {
-                    out.push((pid, it.collect::<Vec<_>>().join(" ")));
+                    add(pid, it.collect::<Vec<_>>().join(" "));
                 }
             }
         }
@@ -668,23 +845,129 @@ pub fn scan_conky_processes() -> Vec<(i32, String)> {
             continue;
         }
         let cmdl = read_proc_cmdline(pid);
-        if cmdl.is_empty() {
+        if !proc_is_conky(pid, &cmdl) {
             continue;
         }
-        let base = cmdl
-            .split_whitespace()
-            .next()
-            .map(|s| Path::new(s).file_name().unwrap_or_default().to_string_lossy().to_lowercase())
-            .unwrap_or_default();
-        if base != "conky" && !cmdl.contains(" conky ") && !cmdl.starts_with("conky ") {
-            continue;
+        add(pid, cmdl);
+    }
+    // /proc can be filtered by hidepid or a sandbox. pgrep is only a
+    // supplementary source; proc_is_conky still validates the candidate.
+    if let Ok(o) = Command::new("pgrep").args(["-af", "conky"]).output() {
+        for line in String::from_utf8_lossy(&o.stdout).lines() {
+            let mut it = line.split_whitespace();
+            if let Some(pid) = it.next().and_then(|s| s.parse().ok()) {
+                add(pid, it.collect::<Vec<_>>().join(" "));
+            }
         }
-        if cmdl.contains("conky-manager") && !cmdl.contains(" -c ") {
-            continue;
-        }
-        out.push((pid, cmdl));
     }
     out
+}
+fn paths_equivalent(a: &Path, b: &Path) -> bool {
+    if a == b {
+        return true;
+    }
+    let ra = resolve_path(a);
+    let rb = resolve_path(b);
+    if ra == rb {
+        return true;
+    }
+    use std::os::unix::fs::MetadataExt;
+    match (fs::metadata(&ra), fs::metadata(&rb)) {
+        (Ok(ma), Ok(mb)) => ma.dev() == mb.dev() && ma.ino() == mb.ino(),
+        _ => false,
+    }
+}
+fn launch_source_marker(dir: &Path) -> PathBuf {
+    dir.join("conkio-source.txt")
+}
+fn source_theme_from_launch(path: &Path) -> Option<PathBuf> {
+    let dir = path.parent()?;
+    if !dir.starts_with(launch_dir()) {
+        return None;
+    }
+    let marker = launch_source_marker(dir);
+    let raw = read_text(&marker);
+    let src = PathBuf::from(expand_theme_path(raw.trim()));
+    src.is_file().then(|| resolve_path(&src))
+}
+fn conky_config_paths(pid: i32, cmdline: &str) -> Vec<PathBuf> {
+    let args: Vec<&str> = cmdline.split_whitespace().collect();
+    let cwd = read_proc_cwd(pid);
+    let mut out = Vec::new();
+    let mut explicit = false;
+    let mut add_file = |path: PathBuf| {
+        if path.is_file() {
+            let resolved = resolve_path(&path);
+            if let Some(src) = source_theme_from_launch(&resolved) {
+                out.push(src);
+            }
+            out.push(resolved);
+        }
+    };
+    for i in 0..args.len() {
+        let value = if args[i] == "-c" || args[i] == "--config" {
+            args.get(i + 1).copied()
+        } else if let Some(v) = args[i].strip_prefix("--config=") {
+            Some(v)
+        } else if let Some(v) = args[i].strip_prefix("-c=") {
+            Some(v)
+        } else {
+            None
+        };
+        if let Some(value) = value {
+            explicit = true;
+            let expanded = expand_theme_path(value);
+            let candidate = Path::new(&expanded);
+            let path = if candidate.is_absolute() {
+                candidate.to_path_buf()
+            } else {
+                cwd.join(candidate)
+            };
+            add_file(path);
+        }
+    }
+    for (key, value) in read_proc_environ(pid) {
+        if key == "CONKY_CONFIG" || key == "CONKY_CONFIG_FILE" || key == "CONKY_MANAGER_THEME_ID" {
+            explicit = true;
+            let candidate = PathBuf::from(expand_theme_path(&value));
+            let path = if candidate.is_absolute() { candidate } else { cwd.join(candidate) };
+            add_file(path);
+        }
+    }
+    for path in read_proc_open_files(pid) {
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+        if looks_like_config_name(name) && is_valid_theme(&path) {
+            add_file(path);
+        }
+    }
+    if !explicit {
+        for candidate in [
+            cwd.join(".conkyrc"),
+            home().join(".conkyrc"),
+            home().join(".config/conky/conky.conf"),
+            PathBuf::from("/etc/conky/conky.conf"),
+        ] {
+            add_file(candidate);
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+fn theme_matches_running(theme_cfg: &Path, running: &[PathBuf]) -> bool {
+    let wanted = resolve_path(theme_cfg);
+    running.iter().any(|running_path| {
+        if paths_equivalent(&wanted, running_path) {
+            return true;
+        }
+        if let Some(src) = source_theme_from_launch(running_path) {
+            if paths_equivalent(&wanted, &src) {
+                return true;
+            }
+        }
+        let same_name = wanted.file_name() == running_path.file_name();
+        same_name && resolve_theme_root(&wanted) == resolve_theme_root(running_path)
+    })
 }
 pub fn prune_runtime() -> RuntimeFile {
     let _g = runtime_mu().lock().unwrap();
@@ -714,16 +997,39 @@ pub fn register_managed_process(p: ManagedProcess) {
 }
 pub fn managed_for_theme(cfg: &Path) -> Option<ManagedProcess> {
     let id = theme_id(cfg);
-    prune_runtime()
-        .processes
-        .into_iter()
-        .find(|p| p.theme_id == id)
+    let wanted = resolve_path(cfg);
+    if let Some(process) = prune_runtime().processes.into_iter().find(|p| {
+        p.theme_id == id
+            || paths_equivalent(Path::new(&p.theme_id), &wanted)
+            || paths_equivalent(Path::new(&p.config_path), &wanted)
+            || paths_equivalent(Path::new(&p.launch_config), &wanted)
+            || source_theme_from_launch(Path::new(&p.launch_config))
+                .map(|src| paths_equivalent(&src, &wanted))
+                .unwrap_or(false)
+    }) {
+        return Some(process);
+    }
+    scan_conky_processes().into_iter().find_map(|(pid, cmdline)| {
+        let paths = conky_config_paths(pid, &cmdline);
+        theme_matches_running(&wanted, &paths).then(|| ManagedProcess {
+            pid,
+            theme_id: id.clone(),
+            config_path: wanted.to_string_lossy().into_owned(),
+            launch_config: paths
+                .first()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_else(|| wanted.to_string_lossy().into_owned()),
+            started_at: timestamp() as i64,
+            preview: false,
+        })
+    })
 }
 pub fn stop_pid(pid: i32, force: bool) {
     if pid <= 0 || !pid_alive(pid) {
         return;
     }
-    let managed_conky = read_proc_cmdline(pid).to_lowercase().contains("conky");
+    let cmdline = read_proc_cmdline(pid);
+    let managed_conky = proc_is_conky(pid, &cmdline);
     unsafe {
         // run_conky creates a process group whose PGID equals the leader PID.
         // Signal the group only after verifying it is still a Conky process.
@@ -745,12 +1051,18 @@ pub fn stop_pid(pid: i32, force: bool) {
     }
 }
 pub fn stop_managed_theme(cfg: &Path) -> bool {
-    let id = theme_id(cfg);
+    let wanted = resolve_path(cfg);
     let r = prune_runtime();
     let mut found = false;
     let mut next = Vec::new();
     for p in r.processes {
-        if p.theme_id == id {
+        let related = paths_equivalent(Path::new(&p.theme_id), &wanted)
+            || paths_equivalent(Path::new(&p.config_path), &wanted)
+            || paths_equivalent(Path::new(&p.launch_config), &wanted)
+            || source_theme_from_launch(Path::new(&p.launch_config))
+                .map(|src| paths_equivalent(&src, &wanted))
+                .unwrap_or(false);
+        if related {
             stop_pid(p.pid, true);
             found = true;
         } else {
@@ -758,19 +1070,54 @@ pub fn stop_managed_theme(cfg: &Path) -> bool {
         }
     }
     save_runtime(&RuntimeFile { processes: next });
+    if !found {
+        if let Some(p) = managed_for_theme(cfg) {
+            stop_pid(p.pid, true);
+            found = true;
+        }
+    }
     found
 }
 pub fn stop_all_managed() -> usize {
     let r = prune_runtime();
-    let n = r.processes.len();
+    let mut seen = HashSet::new();
+    let mut n = 0usize;
     for p in r.processes {
-        stop_pid(p.pid, true);
+        if seen.insert(p.pid) {
+            stop_pid(p.pid, true);
+            n += 1;
+        }
+    }
+    for (pid, _) in scan_conky_processes() {
+        if seen.insert(pid) {
+            stop_pid(pid, true);
+            n += 1;
+        }
     }
     save_runtime(&RuntimeFile::default());
     n
 }
 pub fn is_theme_running(cfg: &Path) -> bool {
     managed_for_theme(cfg).is_some()
+}
+pub fn adopt_unmanaged_conky() {
+    let live = scan_conky_processes();
+    for (pid, cmdline) in live {
+        if prune_runtime().processes.iter().any(|p| p.pid == pid) {
+            continue;
+        }
+        let paths = conky_config_paths(pid, &cmdline);
+        let Some(primary) = paths.iter().find(|p| p.is_file()).cloned() else { continue };
+        let source = source_theme_from_launch(&primary).unwrap_or(primary.clone());
+        register_managed_process(ManagedProcess {
+            pid,
+            theme_id: theme_id(&source),
+            config_path: source.to_string_lossy().into_owned(),
+            launch_config: primary.to_string_lossy().into_owned(),
+            started_at: timestamp() as i64,
+            preview: false,
+        });
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -809,7 +1156,13 @@ pub fn list_monitors() -> Vec<MonitorInfo> {
     if let Some(m) = parse_hypr_monitors() {
         return m;
     }
+    if let Some(m) = parse_niri_outputs() {
+        return m;
+    }
     if let Some(m) = parse_sway_outputs() {
+        return m;
+    }
+    if let Some(m) = parse_wlr_randr() {
         return m;
     }
     if let Some(m) = parse_xrandr() {
@@ -863,6 +1216,73 @@ fn parse_xrandr() -> Option<Vec<MonitorInfo>> {
         }
         Some(mons)
     }
+}
+fn parse_niri_outputs() -> Option<Vec<MonitorInfo>> {
+    let out = Command::new("niri").args(["msg", "-j", "outputs"]).output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
+    let mut mons = Vec::new();
+    let mut push = |name: &str, node: &serde_json::Value, idx: usize| {
+        let logical = node.get("logical").unwrap_or(node);
+        mons.push(MonitorInfo {
+            id: name.into(),
+            name: name.into(),
+            width: logical.get("width").and_then(|x| x.as_i64()).unwrap_or(0) as i32,
+            height: logical.get("height").and_then(|x| x.as_i64()).unwrap_or(0) as i32,
+            x: logical.get("x").and_then(|x| x.as_i64()).unwrap_or(0) as i32,
+            y: logical.get("y").and_then(|x| x.as_i64()).unwrap_or(0) as i32,
+            scale: logical.get("scale").and_then(|x| x.as_f64()).unwrap_or(1.0).max(1.0) as i32,
+            primary: idx == 0,
+            head: idx as i32 + 1,
+            connector: name.into(),
+        });
+    };
+    if let Some(map) = v.as_object() {
+        for (i, (name, node)) in map.iter().enumerate() {
+            push(name, node, i);
+        }
+    } else if let Some(arr) = v.as_array() {
+        for (i, node) in arr.iter().enumerate() {
+            let name = node.get("name").and_then(|x| x.as_str()).unwrap_or("output");
+            push(name, node, i);
+        }
+    }
+    if mons.is_empty() { None } else { Some(mons) }
+}
+fn parse_wlr_randr() -> Option<Vec<MonitorInfo>> {
+    let out = Command::new("wlr-randr").arg("--json").output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
+    let arr = v.as_array()?;
+    let mut mons = Vec::new();
+    for (i, m) in arr.iter().enumerate() {
+        let name = m.get("name").and_then(|x| x.as_str()).unwrap_or("output");
+        let enabled = m.get("enabled").and_then(|x| x.as_bool()).unwrap_or(true);
+        if !enabled {
+            continue;
+        }
+        mons.push(MonitorInfo {
+            id: name.into(),
+            name: name.into(),
+            width: m.get("modes").and_then(|x| x.as_array())
+                .and_then(|modes| modes.iter().find(|mode| mode.get("current").and_then(|c| c.as_bool()) == Some(true)))
+                .and_then(|mode| mode.get("width")).and_then(|x| x.as_i64()).unwrap_or(0) as i32,
+            height: m.get("modes").and_then(|x| x.as_array())
+                .and_then(|modes| modes.iter().find(|mode| mode.get("current").and_then(|c| c.as_bool()) == Some(true)))
+                .and_then(|mode| mode.get("height")).and_then(|x| x.as_i64()).unwrap_or(0) as i32,
+            x: m.get("position").and_then(|p| p.get("x")).and_then(|x| x.as_i64()).unwrap_or(0) as i32,
+            y: m.get("position").and_then(|p| p.get("y")).and_then(|x| x.as_i64()).unwrap_or(0) as i32,
+            scale: m.get("scale").and_then(|x| x.as_f64()).unwrap_or(1.0).max(1.0) as i32,
+            primary: m.get("make").is_some() && i == 0,
+            head: i as i32 + 1,
+            connector: name.into(),
+        });
+    }
+    if mons.is_empty() { None } else { Some(mons) }
 }
 fn parse_hypr_monitors() -> Option<Vec<MonitorInfo>> {
     let out = Command::new("hyprctl").args(["monitors", "-j"]).output().ok()?;
@@ -1002,7 +1422,11 @@ pub fn is_valid_theme(cfg: &Path) -> bool {
 }
 pub fn looks_like_config_name(name: &str) -> bool {
     let l = name.to_lowercase();
-    l.ends_with(".conf") || name == "conkyrc" || name.starts_with("conkyrc")
+    l.ends_with(".conf")
+        || l.ends_with(".conkyrc")
+        || l == "conkyrc"
+        || l == ".conkyrc"
+        || l.starts_with("conkyrc")
 }
 
 pub fn all_theme_roots() -> Vec<PathBuf> {
@@ -1107,8 +1531,19 @@ pub fn discover_themes() -> Vec<Theme> {
     let mut seen = HashSet::new();
     let fav = load_library().favorites;
     let recent = recent_set();
+    adopt_unmanaged_conky();
     let running = prune_runtime();
-    let running_ids: HashSet<String> = running.processes.into_iter().map(|p| p.theme_id).collect();
+    let mut running_ids: HashSet<String> = running.processes.into_iter().map(|p| p.theme_id).collect();
+    let mut running_paths = Vec::new();
+    for (pid, cmdline) in scan_conky_processes() {
+        for path in conky_config_paths(pid, &cmdline) {
+            running_ids.insert(theme_id(&path));
+            if let Some(src) = source_theme_from_launch(&path) {
+                running_ids.insert(theme_id(&src));
+            }
+            running_paths.push(path);
+        }
+    }
     for root in all_theme_roots() {
         for e in WalkDir::new(&root).follow_links(false).into_iter().filter_map(Result::ok) {
             if !e.file_type().is_file() {
@@ -1140,7 +1575,7 @@ pub fn discover_themes() -> Vec<Theme> {
                 name: display,
                 path: key.clone(),
                 root: theme_root.to_string_lossy().to_string(),
-                running: running_ids.contains(&key),
+                running: running_ids.contains(&key) || theme_matches_running(&resolved, &running_paths),
                 favorite: fav.get(&key).copied().unwrap_or(false),
                 health: health.status_label(),
                 recent: recent.contains(&key),
@@ -1478,6 +1913,10 @@ fn window_hints(desktop_env: &str, layer: &str, new_syntax: bool) -> String {
     let above = layer == "above";
     let (hi, lo) = match desktop_env {
         "kde" => (
+            "undecorated,above,sticky,skip_taskbar,skip_pager",
+            "undecorated,below,sticky,skip_taskbar,skip_pager",
+        ),
+        "hyprland" | "niri" | "sway" => (
             "undecorated,above,sticky,skip_taskbar,skip_pager",
             "undecorated,below,sticky,skip_taskbar,skip_pager",
         ),
@@ -1863,6 +2302,7 @@ pub fn create_theme_launch_bundle(
     path_fixes += extra + patched_scripts + color_fixes;
     let launch_config = ldir.join(cfg_path.file_name().unwrap_or_default());
     fs::write(&launch_config, content)?;
+    let _ = fs::write(launch_source_marker(&ldir), cfg_path.to_string_lossy().as_bytes());
     link_theme_assets(&theme_root, &ldir);
     let fonts = theme_root.join("fonts");
     Ok(ThemeLaunchBundle {
@@ -1967,6 +2407,7 @@ pub fn run_conky(
     if !conky_available() {
         return Err("Conky is not installed".into());
     }
+    apply_compositor_support();
     let settings = load_settings();
     let running = prune_runtime().processes.len() as i32;
     if running >= settings.max_instances.max(1) {
@@ -2016,6 +2457,7 @@ pub fn run_conky(
                 ),
             );
             record_recent(cfg_path);
+            float_conky_on_compositor();
             return Ok(RunResult {
                 pid,
                 path,
@@ -2210,13 +2652,15 @@ pub fn inspect_theme_health(cfg: &Path, full: bool) -> ThemeHealth {
     }
     let de = detect_desktop_environment();
     let kind = display_server_kind();
-    if kind == "wayland" && matches!(de.as_str(), "hyprland" | "sway" | "niri") {
-        add(
-            "info",
-            "wayland",
-            &format!("Running on {de} (Wayland). Conky may need XWayland or compositor window rules."),
-            "Keep own_window enabled and try Layer = above if the theme is invisible.",
-        );
+    if kind == "wayland" || kind == "xwayland" {
+        if matches!(de.as_str(), "hyprland" | "sway" | "niri" | "cosmic") {
+            add(
+                "info",
+                "wayland",
+                &format!("Running on {de} ({kind}). Conkio applies compositor-specific window rules and XWayland hints."),
+                "If the widget is invisible, keep own_window enabled and use Layer = above.",
+            );
+        }
     }
     let ver = conky_version();
     let content = read_text(cfg);
@@ -2843,10 +3287,12 @@ pub fn import_dropped_path(path: &Path) -> io::Result<Vec<String>> {
         import_folder_to_conky(path, None)
     } else if is_archive(path) {
         import_archive_to_conky(path, None)
+    } else if path.is_file() && looks_like_config_name(&path.file_name().unwrap_or_default().to_string_lossy()) {
+        import_folder_to_conky(path.parent().unwrap_or(path), None)
     } else {
         Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "drop a theme folder or archive",
+            "drop a theme folder, archive, or Conky config",
         ))
     }
 }
@@ -2890,6 +3336,7 @@ pub fn run_profile_by_name(name: &str) -> Result<usize, String> {
     if !conky_available() {
         return Err("Conky is not installed".into());
     }
+    adopt_unmanaged_conky();
     let profiles = load_profiles();
     let mut items = if let Some(dp) = profiles.desktop.get(name) {
         dp.themes.clone()
@@ -2907,15 +3354,22 @@ pub fn run_profile_by_name(name: &str) -> Result<usize, String> {
             })
             .collect()
     };
-    items.retain(|t| t.enabled && Path::new(&t.path).is_file());
+    items.retain(|t| t.enabled && resolve_path(Path::new(&expand_theme_path(&t.path))).is_file());
     if items.is_empty() {
         return Err(format!("profile {name} has no runnable themes"));
     }
-    stop_all_managed();
     let max_n = load_settings().max_instances.max(1) as usize;
-    items.truncate(max_n);
-    let mut started = 0;
+    let mut active = 0;
     for t in items {
+        let theme_path = resolve_path(Path::new(&expand_theme_path(&t.path)));
+        // A profile may be launched by autostart, another manager, or a
+        // previous Conkio process. Keep that instance and count it instead of
+        // starting a duplicate (or stopping unrelated desktop Conky widgets).
+        if is_theme_running(&theme_path) {
+            active += 1;
+            continue;
+        }
+        if active >= max_n { break; }
         if t.startup_delay > 0 {
             thread::sleep(Duration::from_secs(t.startup_delay as u64));
         }
@@ -2936,14 +3390,14 @@ pub fn run_profile_by_name(name: &str) -> Result<usize, String> {
         } else {
             resolve_theme_colors(Path::new(&t.path))
         };
-        if run_conky(Path::new(&t.path), pos_ptr.as_ref(), col.as_ref()).is_ok() {
-            started += 1;
+        if run_conky(&theme_path, pos_ptr.as_ref(), col.as_ref()).is_ok() {
+            active += 1;
         }
     }
     let mut pf = load_profiles();
     pf.last_profile = name.into();
     let _ = save_profiles(&pf);
-    Ok(started)
+    Ok(active)
 }
 
 pub fn capture_profile(name: &str, paths: &[String]) -> DesktopProfile {
@@ -2974,32 +3428,26 @@ pub fn capture_profile(name: &str, paths: &[String]) -> DesktopProfile {
 
 pub fn pick_native_color(initial: &str) -> Option<String> {
     let start = if initial.is_empty() { "#A9B1D6" } else { initial };
-    if which("zenity") {
-        let o = Command::new("zenity")
-            .args(["--color-selection", &format!("--color={start}")])
-            .output()
-            .ok()?;
-        if o.status.success() {
-            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            let n = normalize_color(&s);
-            if !n.is_empty() {
-                return Some(n);
-            }
-        }
+    // Keep one native source visible to the user: KDE gets KDialog, while
+    // GNOME/GTK and other desktops get Zenity.  There is no second in-app
+    // color editor or text entry fallback.
+    let desktop = format!("{} {}",
+        env::var("XDG_CURRENT_DESKTOP").unwrap_or_default(),
+        env::var("XDG_SESSION_DESKTOP").unwrap_or_default()).to_lowercase();
+    let (program, args): (&str, Vec<String>) = if desktop.contains("kde") || desktop.contains("plasma") {
+        ("kdialog", vec!["--getcolor".into(), start.into()])
+    } else {
+        ("zenity", vec!["--color-selection".into(), format!("--color={start}")])
+    };
+    if !which(program) {
+        return None;
     }
-    if which("kdialog") {
-        let o = Command::new("kdialog")
-            .args(["--getcolor", start])
-            .output()
-            .ok()?;
-        if o.status.success() {
-            let n = normalize_color(String::from_utf8_lossy(&o.stdout).trim());
-            if !n.is_empty() {
-                return Some(n);
-            }
-        }
+    let output = Command::new(program).args(&args).output().ok()?;
+    if !output.status.success() {
+        return None;
     }
-    None
+    let value = normalize_color(String::from_utf8_lossy(&output.stdout).trim());
+    (!value.is_empty()).then_some(value)
 }
 
 pub fn theme_fingerprint() -> u64 {
@@ -3023,4 +3471,3 @@ pub fn theme_fingerprint() -> u64 {
     }
     n
 }
-

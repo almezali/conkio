@@ -1,5 +1,7 @@
+mod dnd;
 mod engine;
 
+use dnd::{install_native_file_drop_hook, parse_dropped_text};
 use engine::*;
 use slint::{ComponentHandle, Model, ModelRc, SharedString, Timer, TimerMode, VecModel};
 use std::{
@@ -60,7 +62,8 @@ impl ksni::Tray for ConkioTray {
         "Conkio".into()
     }
     fn icon_name(&self) -> String {
-        "com.almezali.Conkio".into()
+        // Resolved from /usr/share/pixmaps/conkio.svg by status-notifier hosts.
+        "conkio".into()
     }
     fn activate(&mut self, _x: i32, _y: i32) {
         self.events.lock().unwrap().push(TrayAction::Show);
@@ -196,8 +199,22 @@ fn theme_rows(themes: &[Theme], query: &str, filter: i32, checked: &std::collect
 }
 fn selected_theme(st: &State) -> Option<Theme> {
     let path = st.selected_path.as_ref()?;
+    // A focused card is informational. Operations are authorized only by the
+    // checkbox, including context-menu and tray actions.
+    if !st.checked_paths.contains(path) {
+        return None;
+    }
     st.themes.iter().find(|t| &t.path == path).cloned()
 }
+
+fn checked_themes(st: &State) -> Vec<Theme> {
+    st.themes
+        .iter()
+        .filter(|theme| st.checked_paths.contains(&theme.path))
+        .cloned()
+        .collect()
+}
+
 fn visible_theme_at(st: &State, index: i32) -> Option<Theme> {
     visible_themes(&st.themes, &st.query, st.filter).into_iter().nth(index.max(0) as usize)
 }
@@ -802,8 +819,8 @@ fn product_row(p: &OnlineProductData) -> OnlineProduct {
     }
 }
 
-fn market_model_update(w: &MarketplaceWindow, rows: Vec<OnlineProduct>, append: bool) {
-    let model = w.get_products();
+fn market_model_update(w: &ConkioWindow, rows: Vec<OnlineProduct>, append: bool) {
+    let model = w.get_market_products();
     if let Some(vm) = model.as_any().downcast_ref::<VecModel<OnlineProduct>>() {
         if append {
             for r in rows {
@@ -813,12 +830,12 @@ fn market_model_update(w: &MarketplaceWindow, rows: Vec<OnlineProduct>, append: 
             vm.set_vec(rows);
         }
     } else {
-        w.set_products(ModelRc::new(VecModel::from(rows)));
+        w.set_market_products(ModelRc::new(VecModel::from(rows)));
     }
 }
 
-fn market_show_product(w: &MarketplaceWindow, ms: &Arc<Mutex<MarketState>>, index: Option<usize>) {
-    let store = online_store(w.get_store_index());
+fn market_show_product(w: &ConkioWindow, ms: &Arc<Mutex<MarketState>>, index: Option<usize>) {
+    let store = online_store(w.get_market_store_index());
     let product = {
         let mut m = ms.lock().unwrap();
         let found = index.and_then(|i| m.products.get(i).cloned().map(|p| (i, p)));
@@ -834,41 +851,41 @@ fn market_show_product(w: &MarketplaceWindow, ms: &Arc<Mutex<MarketState>>, inde
         }
         found
     };
-    w.set_preview(slint::Image::default());
-    w.set_has_preview(false);
+    w.set_market_preview(slint::Image::default());
+    w.set_market_has_preview(false);
     let Some((i, p)) = product else {
-        w.set_selected_index(-1);
-        w.set_detail_title("Select a theme".into());
-        w.set_detail_desc(
+        w.set_market_selected_index(-1);
+        w.set_market_detail_title("Select a theme".into());
+        w.set_market_detail_desc(
             "Choose a result to inspect its description, author, version, and store page.".into(),
         );
-        w.set_detail_meta("".into());
-        w.set_link_label(format!("Open {} in browser", store.label).into());
-        w.set_link_url(store.browse_url.into());
+        w.set_market_detail_meta("".into());
+        w.set_market_link_label(format!("Open {} in browser", store.label).into());
+        w.set_market_link_url(store.browse_url.into());
         return;
     };
-    w.set_selected_index(i as i32);
-    w.set_detail_title(p.name.clone().into());
+    w.set_market_selected_index(i as i32);
+    w.set_market_detail_title(p.name.clone().into());
     let summary = if p.summary.is_empty() {
         "No description was supplied by the store.".to_string()
     } else {
         p.summary.clone()
     };
-    w.set_detail_desc(summary.into());
+    w.set_market_detail_desc(summary.into());
     let version = if p.version.is_empty() {
         "not specified".to_string()
     } else {
         p.version.clone()
     };
-    w.set_detail_meta(
+    w.set_market_detail_meta(
         format!(
             "Author: {}\nDownloads: {}\nRating: {:.1}\nVersion: {}\nStore: {}",
             p.author, p.downloads, p.score, version, store.label
         )
         .into(),
     );
-    w.set_link_label(format!("View details on {}", store.label).into());
-    w.set_link_url(p.page_url.clone().into());
+    w.set_market_link_label(format!("View details on {}", store.label).into());
+    w.set_market_link_url(p.page_url.clone().into());
     if !p.preview_url.is_empty() {
         let purl = p.preview_url.clone();
         let weak = w.as_weak();
@@ -882,19 +899,19 @@ fn market_show_product(w: &MarketplaceWindow, ms: &Arc<Mutex<MarketState>>, inde
                     let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
                         &pixels, width, height,
                     );
-                    w.set_preview(slint::Image::from_rgba8(buffer));
-                    w.set_has_preview(true);
+                    w.set_market_preview(slint::Image::from_rgba8(buffer));
+                    w.set_market_has_preview(true);
                 });
             }
         });
     }
 }
 
-fn market_load(w: &MarketplaceWindow, ms: &Arc<Mutex<MarketState>>, reset: bool) {
-    let store = online_store(w.get_store_index());
-    let sort = SORT_IDS[(w.get_sort_index().max(0) as usize).min(SORT_IDS.len() - 1)];
-    let extra = CATEGORY_QUERIES[(w.get_category_index().max(0) as usize).min(CATEGORY_QUERIES.len() - 1)];
-    let mut query = w.get_query().to_string();
+fn market_load(w: &ConkioWindow, ms: &Arc<Mutex<MarketState>>, reset: bool) {
+    let store = online_store(w.get_market_store_index());
+    let sort = SORT_IDS[(w.get_market_sort_index().max(0) as usize).min(SORT_IDS.len() - 1)];
+    let extra = CATEGORY_QUERIES[(w.get_market_category_index().max(0) as usize).min(CATEGORY_QUERIES.len() - 1)];
+    let mut query = w.get_market_query().to_string();
     if !extra.is_empty() && !query.to_lowercase().contains(extra) {
         query = format!("{} {}", query, extra).trim().to_string();
     }
@@ -917,12 +934,12 @@ fn market_load(w: &MarketplaceWindow, ms: &Arc<Mutex<MarketState>>, reset: bool)
     if reset {
         market_model_update(w, Vec::new(), false);
         market_show_product(w, ms, None);
-        w.set_status_text(format!("Searching {}…", store.label).into());
+        w.set_market_status_text(format!("Searching {}…", store.label).into());
     } else {
-        w.set_status_text("Loading more results…".into());
+        w.set_market_status_text("Loading more results…".into());
     }
-    w.set_loading(true);
-    w.set_can_load_more(false);
+    w.set_market_loading(true);
+    w.set_market_can_load_more(false);
     let weak = w.as_weak();
     let ms = ms.clone();
     thread::spawn(move || {
@@ -934,7 +951,7 @@ fn market_load(w: &MarketplaceWindow, ms: &Arc<Mutex<MarketState>>, reset: bool)
 }
 
 fn market_loaded(
-    w: &MarketplaceWindow,
+    w: &ConkioWindow,
     ms: &Arc<Mutex<MarketState>>,
     request_id: u64,
     reset: bool,
@@ -944,7 +961,7 @@ fn market_loaded(
     if ms.lock().unwrap().request_id != request_id {
         return; // superseded by a newer search
     }
-    w.set_loading(false);
+    w.set_market_loading(false);
     match result {
         Err(error) => {
             {
@@ -954,8 +971,8 @@ fn market_loaded(
                     m.page -= 1;
                 }
             }
-            w.set_can_load_more(false);
-            w.set_status_text(format!("Store unavailable: {}", error).into());
+            w.set_market_can_load_more(false);
+            w.set_market_status_text(format!("Store unavailable: {}", error).into());
         }
         Ok((found, count)) => {
             let (rows, len, total) = {
@@ -976,30 +993,21 @@ fn market_loaded(
             } else {
                 format!("Showing {} results · {}", len, store.label)
             };
-            w.set_status_text(status.into());
-            w.set_can_load_more(total > len);
+            w.set_market_status_text(status.into());
+            w.set_market_can_load_more(total > len);
         }
     }
 }
 
-fn open_marketplace(
-    w: &MarketplaceWindow,
-    main: Option<&ConkioWindow>,
-    ms: &Arc<Mutex<MarketState>>,
-) {
-    if let Some(m) = main {
-        w.set_light_mode(m.get_light_mode());
-    }
-    if w.window().is_visible() {
-        let _ = w.show();
+fn open_marketplace(w: &ConkioWindow, ms: &Arc<Mutex<MarketState>>) {
+    if w.get_show_marketplace() {
         return;
     }
-    // A closed marketplace starts fresh, exactly like the GTK dialog.
-    w.set_store_index(0);
-    w.set_sort_index(0);
-    w.set_category_index(0);
-    w.set_query("".into());
-    let _ = w.show();
+    w.set_market_store_index(0);
+    w.set_market_sort_index(0);
+    w.set_market_category_index(0);
+    w.set_market_query("".into());
+    w.set_show_marketplace(true);
     market_load(w, ms, true);
 }
 
@@ -1007,7 +1015,6 @@ fn open_marketplace(
 #[derive(Clone)]
 struct DownloadCtx {
     main: slint::Weak<ConkioWindow>,
-    dl: slint::Weak<DownloadWindow>,
     state: Arc<Mutex<State>>,
     busy: Arc<AtomicBool>,
     cancel: Arc<AtomicBool>,
@@ -1016,36 +1023,30 @@ struct DownloadCtx {
 fn start_download(ctx: DownloadCtx, title: String, store_index: i32, product_id: i64) {
     ctx.busy.store(true, Ordering::SeqCst);
     ctx.cancel.store(false, Ordering::SeqCst);
-    let mut light = false;
     if let Some(m) = ctx.main.upgrade() {
-        light = m.get_light_mode();
         m.set_busy(true);
         m.set_status_text(format!("Downloading {}…", title).into());
-    }
-    if let Some(d) = ctx.dl.upgrade() {
-        d.set_light_mode(light);
-        d.set_item_title(title.clone().into());
-        d.set_progress(0.0);
-        d.set_status_text("Connecting…".into());
-        let _ = d.show();
+        m.set_dl_item_title(title.clone().into());
+        m.set_dl_progress(0.0);
+        m.set_dl_status("Connecting…".into());
+        m.set_show_download(true);
+        m.set_show_marketplace(false);
     }
     thread::spawn(move || {
         let store = online_store(store_index);
-        let dl = ctx.dl.clone();
+        let main = ctx.main.clone();
         let progress = move |fraction: f64, message: &str| {
             let message = message.to_string();
-            let _ = dl.upgrade_in_event_loop(move |d| {
-                d.set_progress(fraction.clamp(0.0, 1.0) as f32);
-                d.set_status_text(message.into());
+            let _ = main.upgrade_in_event_loop(move |m| {
+                m.set_dl_progress(fraction.clamp(0.0, 1.0) as f32);
+                m.set_dl_status(message.into());
             });
         };
         let result = download_and_install_product(store, product_id, &ctx.cancel, &progress);
         let canceled = result.is_err() && ctx.cancel.load(Ordering::SeqCst);
         let done = ctx.clone();
         let _ = ctx.main.upgrade_in_event_loop(move |m| {
-            if let Some(d) = done.dl.upgrade() {
-                let _ = d.hide();
-            }
+            m.set_show_download(false);
             done.busy.store(false, Ordering::SeqCst);
             m.set_busy(false);
             if canceled {
@@ -1115,18 +1116,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Err(e) => { eprintln!("{e}"); std::process::exit(1); }
         }
     }
+    // Dialogs are in-window overlays so Wayland compositors never see extra
+    // xdg_toplevels (the previous helper windows appeared as ghost tasks).
     let ui = ConkioWindow::new()?;
-    let marketplace_window = MarketplaceWindow::new()?;
-    let download_window = DownloadWindow::new()?;
-    let settings_window = SettingsWindow::new()?;
-    let about_window = AboutWindow::new()?;
-    let prompt_window = PromptWindow::new()?;
-    // Slint windows are created for callback wiring, but only the main window may be visible at startup.
-    let _ = marketplace_window.hide();
-    let _ = download_window.hide();
-    let _ = settings_window.hide();
-    let _ = about_window.hide();
-    let _ = prompt_window.hide();
+    install_native_file_drop_hook(&ui);
+    ui.show()?;
     let prompt_kind: Arc<Mutex<Option<PromptKind>>> = Arc::new(Mutex::new(None));
     let state = Arc::new(Mutex::new(State {
         settings: load_settings(),
@@ -1135,7 +1129,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }));
     let themes = { let st = state.lock().unwrap(); theme_rows(&st.themes, "", 0, &st.checked_paths) };
     ui.set_themes(ModelRc::new(VecModel::from(themes)));
-    marketplace_window.set_products(ModelRc::new(VecModel::<OnlineProduct>::default()));
+    ui.set_market_products(ModelRc::new(VecModel::<OnlineProduct>::default()));
     let market_state = Arc::new(Mutex::new(MarketState::default()));
     let busy_flag = Arc::new(AtomicBool::new(false));
     let cancel_flag = Arc::new(AtomicBool::new(false));
@@ -1143,7 +1137,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ui.set_conky_version(conky_version().into());
     ui.set_status_text(format!("Conkio v{} ready", VERSION).into());
     ui.set_light_mode(state.lock().unwrap().settings.light_mode);
-    marketplace_window.set_light_mode(state.lock().unwrap().settings.light_mode);
     let tray_events = Arc::new(Mutex::new(Vec::<TrayAction>::new()));
     start_tray(tray_events.clone());
     {
@@ -1179,10 +1172,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
     {
+        let s = state.clone();
         let u = ui.as_weak();
         ui.on_context_theme(move |i| {
-            // Right click opens the menu, but actions still require a checked theme.
+            // A context-menu action is an explicit action on this row. Make the
+            // row the active checked target so every menu command uses the same
+            // checkbox-authorized path as the toolbar and tray commands.
+            let mut st = s.lock().unwrap();
+            if let Some(theme) = visible_theme_at(&st, i) {
+                st.selected_path = Some(theme.path.clone());
+                st.checked_paths.insert(theme.path);
+            }
             if let Some(u) = u.upgrade() {
+                apply_ui(&u, &st);
                 u.set_context_index(i);
                 u.set_context_visible(true);
             }
@@ -1300,19 +1302,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     {
         let s = state.clone();
-        let prompt = prompt_window.as_weak();
+        let u = ui.as_weak();
         let kind = prompt_kind.clone();
         ui.on_create_profile(move || {
             let st = s.lock().unwrap();
             let paths: Vec<String> = st.themes.iter().filter(|t| st.checked_paths.contains(&t.path)).map(|t| t.path.clone()).collect();
             drop(st);
             if paths.is_empty() { return; }
-            let Some(p) = prompt.upgrade() else { return };
+            let Some(p) = u.upgrade() else { return };
             *kind.lock().unwrap() = Some(PromptKind::CreateProfile(paths));
             p.set_title_text("Create profile".into());
             p.set_prompt_label("Profile name".into());
             p.set_prompt_value("My profile".into());
-            let _ = p.show();
+            p.set_show_prompt(true);
         });
     }
     {
@@ -1464,8 +1466,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ui.on_files_dropped(move |paths| {
             let mut imported = 0usize;
             let mut errors: Vec<String> = Vec::new();
+            let mut resolved = Vec::new();
             for path in paths.iter() {
-                match import_dropped_path(&PathBuf::from(path.as_str())) {
+                let text = path.as_str();
+                let extras = parse_dropped_text(text);
+                if extras.is_empty() {
+                    resolved.push(PathBuf::from(text));
+                } else {
+                    resolved.extend(extras);
+                }
+            }
+            for path in resolved {
+                match import_dropped_path(&path) {
                     Ok(names) => imported += names.len(),
                     Err(e) => errors.push(e.to_string()),
                 }
@@ -1783,7 +1795,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     {
         let s = state.clone();
-        let prompt = prompt_window.as_weak();
+        let u = ui.as_weak();
         let kind = prompt_kind.clone();
         ui.on_clone_selected(move || {
             let theme = {
@@ -1791,17 +1803,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 selected_theme(&st)
             };
             let Some(theme) = theme else { return };
-            let Some(p) = prompt.upgrade() else { return };
+            let Some(p) = u.upgrade() else { return };
             *kind.lock().unwrap() = Some(PromptKind::Clone(PathBuf::from(&theme.path)));
             p.set_title_text("Clone theme".into());
             p.set_prompt_label(format!("New folder name for {} copy", theme.name).into());
             p.set_prompt_value(format!("{}-copy", theme.name).into());
-            let _ = p.show();
+            p.set_show_prompt(true);
         });
     }
     {
         let s = state.clone();
-        let prompt = prompt_window.as_weak();
+        let u = ui.as_weak();
         let kind = prompt_kind.clone();
         ui.on_rename_selected(move || {
             let theme = {
@@ -1809,22 +1821,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 selected_theme(&st)
             };
             let Some(theme) = theme else { return };
-            let Some(p) = prompt.upgrade() else { return };
+            let Some(p) = u.upgrade() else { return };
             *kind.lock().unwrap() = Some(PromptKind::Rename(PathBuf::from(&theme.path)));
             p.set_title_text("Rename theme".into());
             p.set_prompt_label(format!("New folder name for {}", theme.name).into());
             p.set_prompt_value(theme.name.clone().into());
-            let _ = p.show();
+            p.set_show_prompt(true);
         });
     }
     {
         let s = state.clone();
         let u = ui.as_weak();
-        let prompt = prompt_window.as_weak();
         let kind = prompt_kind.clone();
-        prompt_window.on_accepted(move |name| {
-            if let Some(p) = prompt.upgrade() {
-                let _ = p.hide();
+        ui.on_prompt_accepted(move |name| {
+            if let Some(p) = u.upgrade() {
+                p.set_show_prompt(false);
             }
             let Some(action) = kind.lock().unwrap().take() else { return };
             if let PromptKind::CreateProfile(paths) = action {
@@ -1865,10 +1876,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
     {
-        let prompt = prompt_window.as_weak();
-        prompt_window.on_cancelled(move || {
-            if let Some(p) = prompt.upgrade() {
-                let _ = p.hide();
+        let u = ui.as_weak();
+        ui.on_prompt_cancelled(move || {
+            if let Some(p) = u.upgrade() {
+                p.set_show_prompt(false);
             }
         });
     }
@@ -2022,7 +2033,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     {
         let s = state.clone();
-        let w = settings_window.as_weak();
+        let w = ui.as_weak();
         ui.on_open_settings(move || {
             if let Some(w) = w.upgrade() {
                 let st = s.lock().unwrap();
@@ -2043,30 +2054,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 w.set_preview_seconds(st.settings.preview_seconds);
                 w.set_login_autostart(st.settings.login_autostart);
                 w.set_minimize_to_tray(st.settings.minimize_to_tray);
-                let _ = w.show();
+                w.set_show_settings(true);
             }
         });
     }
     {
-        let w = about_window.as_weak();
+        let w = ui.as_weak();
         ui.on_show_about(move || {
             if let Some(w) = w.upgrade() {
-                let _ = w.show();
+                w.set_show_about_overlay(true);
             }
         });
     }
     {
-        let w = settings_window.as_weak();
-        settings_window.on_close_settings(move || {
+        let w = ui.as_weak();
+        ui.on_close_settings(move || {
             if let Some(w) = w.upgrade() {
-                let _ = w.hide();
+                w.set_show_settings(false);
             }
         });
     }
     {
         let s = state.clone();
         let u = ui.as_weak();
-        settings_window.on_appearance_changed(move |light| {
+        ui.on_appearance_changed(move |light| {
             let mut st = s.lock().unwrap();
             st.settings.light_mode = light;
             let _ = save_settings(&st.settings);
@@ -2077,9 +2088,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     {
         let s = state.clone();
-        let w = settings_window.as_weak();
+        let w = ui.as_weak();
         let u = ui.as_weak();
-        settings_window.on_add_theme_folder(move || {
+        ui.on_add_theme_folder(move || {
             let Some(folder) = rfd::FileDialog::new()
                 .set_title("Add a Conky themes folder")
                 .pick_folder()
@@ -2108,7 +2119,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     {
         let s = state.clone();
-        settings_window.on_login_toggled(move |enabled| {
+        ui.on_login_toggled(move |enabled| {
             let mut st = s.lock().unwrap();
             st.settings.login_autostart = enabled;
             let _ = save_settings(&st.settings);
@@ -2121,7 +2132,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     {
         let s = state.clone();
-        settings_window.on_tray_toggled(move |enabled| {
+        ui.on_tray_toggled(move |enabled| {
             let mut st = s.lock().unwrap();
             st.settings.minimize_to_tray = enabled;
             let _ = save_settings(&st.settings);
@@ -2129,9 +2140,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     {
         let s = state.clone();
-        let w = settings_window.as_weak();
+        let w = ui.as_weak();
         let u = ui.as_weak();
-        settings_window.on_save_settings(move || {
+        ui.on_save_settings(move || {
             let mut st = s.lock().unwrap();
             if let Some(w) = w.upgrade() {
                 st.settings.login_autostart = w.get_login_autostart();
@@ -2143,128 +2154,123 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 st.settings.nice_level = w.get_nice_level();
                 st.settings.max_instances = w.get_max_instances();
                 st.settings.preview_seconds = w.get_preview_seconds();
+                w.set_show_settings(false);
             }
             let _ = save_settings(&st.settings);
             if let Some(u) = u.upgrade() {
                 u.set_light_mode(st.settings.light_mode);
                 u.set_status_text("Settings saved".into());
             }
-            if let Some(w) = w.upgrade() {
-                let _ = w.hide();
-            }
         });
     }
     {
-        let w = about_window.as_weak();
-        about_window.on_close_about(move || {
+        let w = ui.as_weak();
+        ui.on_close_about(move || {
             if let Some(w) = w.upgrade() {
-                let _ = w.hide();
+                w.set_show_about_overlay(false);
             }
         });
     }
     // ── Theme Marketplace (GNOME-Look / KDE-Look / Pling) ──
     let dl_ctx = DownloadCtx {
         main: ui.as_weak(),
-        dl: download_window.as_weak(),
         state: state.clone(),
         busy: busy_flag.clone(),
         cancel: cancel_flag.clone(),
     };
     {
         let cancel = cancel_flag.clone();
-        let d = download_window.as_weak();
-        download_window.on_cancel(move || {
+        let d = ui.as_weak();
+        ui.on_download_cancel(move || {
             cancel.store(true, Ordering::SeqCst);
             if let Some(d) = d.upgrade() {
-                d.set_status_text("Canceling…".into());
+                d.set_dl_status("Canceling…".into());
             }
         });
     }
     {
-        let w = marketplace_window.as_weak();
-        let main = ui.as_weak();
+        let w = ui.as_weak();
         let ms = market_state.clone();
         ui.on_open_marketplace(move || {
             if let Some(w) = w.upgrade() {
-                open_marketplace(&w, main.upgrade().as_ref(), &ms);
+                open_marketplace(&w, &ms);
             }
         });
     }
     {
-        let w = marketplace_window.as_weak();
-        marketplace_window.on_close_marketplace(move || {
+        let w = ui.as_weak();
+        ui.on_close_marketplace(move || {
             if let Some(w) = w.upgrade() {
-                let _ = w.hide();
+                w.set_show_marketplace(false);
             }
         });
     }
     {
-        let w = marketplace_window.as_weak();
+        let w = ui.as_weak();
         let ms = market_state.clone();
-        marketplace_window.on_store_changed(move |_| {
+        ui.on_market_store_changed(move |_| {
             if let Some(w) = w.upgrade() {
                 market_load(&w, &ms, true);
             }
         });
     }
     {
-        let w = marketplace_window.as_weak();
+        let w = ui.as_weak();
         let ms = market_state.clone();
-        marketplace_window.on_sort_changed(move |_| {
+        ui.on_market_sort_changed(move |_| {
             if let Some(w) = w.upgrade() {
                 market_load(&w, &ms, true);
             }
         });
     }
     {
-        let w = marketplace_window.as_weak();
+        let w = ui.as_weak();
         let ms = market_state.clone();
-        marketplace_window.on_category_changed(move |_| {
+        ui.on_market_category_changed(move |_| {
             if let Some(w) = w.upgrade() {
                 market_load(&w, &ms, true);
             }
         });
     }
     {
-        let w = marketplace_window.as_weak();
+        let w = ui.as_weak();
         let ms = market_state.clone();
-        marketplace_window.on_search(move |_| {
+        ui.on_market_search(move |_| {
             if let Some(w) = w.upgrade() {
                 market_load(&w, &ms, true);
             }
         });
     }
     {
-        // Like the GTK version: no request per keystroke, Enter searches.
-        let w = marketplace_window.as_weak();
-        marketplace_window.on_search_edited(move |_| {
+        let w = ui.as_weak();
+        ui.on_market_search_edited(move |_| {
             if let Some(w) = w.upgrade() {
-                let label = online_store(w.get_store_index()).label;
-                w.set_status_text(format!("Press Enter to search {}.", label).into());
+                let label = online_store(w.get_market_store_index()).label;
+                w.set_market_status_text(format!("Press Enter to search {}.", label).into());
             }
         });
     }
     {
-        let w = marketplace_window.as_weak();
+        let w = ui.as_weak();
         let ms = market_state.clone();
-        marketplace_window.on_select_product(move |i| {
+        ui.on_market_select_product(move |i| {
             if let Some(w) = w.upgrade() {
                 market_show_product(&w, &ms, Some(i.max(0) as usize));
             }
         });
     }
     {
-        let w = marketplace_window.as_weak();
+        let w = ui.as_weak();
         let ms = market_state.clone();
-        marketplace_window.on_load_more(move || {
+        ui.on_market_load_more(move || {
             if let Some(w) = w.upgrade() {
                 market_load(&w, &ms, false);
             }
         });
     }
     {
-        let w = marketplace_window.as_weak();
-        marketplace_window.on_open_link(move |link| {
+        let w = ui.as_weak();
+        ui.on_market_open_link(move |link| {
             let link = link.to_string();
             if w.upgrade().is_some() && (link.starts_with("https://") || link.starts_with("http://")) {
                 thread::spawn(move || {
@@ -2274,10 +2280,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
     {
-        let w = marketplace_window.as_weak();
+        let w = ui.as_weak();
         let ms = market_state.clone();
         let ctx = dl_ctx.clone();
-        marketplace_window.on_install_selected(move || {
+        ui.on_market_install_selected(move || {
             let Some(w) = w.upgrade() else { return };
             let product = {
                 let m = ms.lock().unwrap();
@@ -2285,36 +2291,52 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             let Some(product) = product else { return };
             if ctx.busy.load(Ordering::SeqCst) {
-                if let Some(main) = ctx.main.upgrade() {
-                    main.set_status_text("Please wait until the current operation finishes.".into());
-                }
+                w.set_status_text("Please wait until the current operation finishes.".into());
                 return;
             }
-            let store_index = w.get_store_index();
-            let _ = w.hide();
+            let store_index = w.get_market_store_index();
+            w.set_show_marketplace(false);
             start_download(ctx.clone(), product.name, store_index, product.product_id);
         });
     }
-    let tray_market = marketplace_window.as_weak();
+    let tray_market = ui.as_weak();
     let tray_market_state = market_state.clone();
     let event_ui = ui.as_weak();
     let event_state = state.clone();
     let event_timer = Timer::default();
     let tick_counter = Arc::new(AtomicU32::new(0));
+    let scan_busy = Arc::new(AtomicBool::new(false));
     let tick = tick_counter.clone();
+    let scan_busy_tick = scan_busy.clone();
     event_timer.start(TimerMode::Repeated, Duration::from_millis(1000), move || {
         let n = tick.fetch_add(1, Ordering::Relaxed);
         if n % 5 == 4 {
-            let fp = theme_fingerprint();
-            let mut st = event_state.lock().unwrap();
-            if st.fingerprint == 0 {
-                st.fingerprint = fp;
-            } else if st.fingerprint != fp {
-                st.fingerprint = fp;
-                st.themes = discover_themes();
-                if let Some(u) = event_ui.upgrade() {
-                    apply_ui(&u, &st);
-                }
+            if !scan_busy_tick.swap(true, Ordering::AcqRel) {
+                let bg_state = event_state.clone();
+                let bg_ui = event_ui.clone();
+                let bg_busy = scan_busy_tick.clone();
+                thread::spawn(move || {
+                    let fp = theme_fingerprint();
+                    let changed = {
+                        let st = bg_state.lock().unwrap();
+                        st.fingerprint != 0 && st.fingerprint != fp
+                    };
+                    let themes = changed.then(discover_themes);
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(themes) = themes {
+                            let mut st = bg_state.lock().unwrap();
+                            st.fingerprint = fp;
+                            st.themes = themes;
+                            if let Some(u) = bg_ui.upgrade() {
+                                apply_ui(&u, &st);
+                            }
+                        } else {
+                            let mut st = bg_state.lock().unwrap();
+                            if st.fingerprint == 0 { st.fingerprint = fp; }
+                        }
+                        bg_busy.store(false, Ordering::Release);
+                    });
+                });
             }
         }
         let actions = { std::mem::take(&mut *tray_events.lock().unwrap()) };
@@ -2327,26 +2349,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 TrayAction::Marketplace => {
                     if let Some(w) = tray_market.upgrade() {
-                        open_marketplace(&w, event_ui.upgrade().as_ref(), &tray_market_state);
+                        open_marketplace(&w, &tray_market_state);
                     }
                 }
                 TrayAction::RunSelected => {
-                    let theme = {
+                    let themes = {
                         let st = event_state.lock().unwrap();
-                        selected_theme(&st)
+                        checked_themes(&st)
                     };
-                    let Some(theme) = theme else { continue };
-                    let cfg = PathBuf::from(&theme.path);
-                    let status = match run_conky(&cfg, None, None) {
-                        Ok(r) => format!(
-                            "Running {} (pid {}, {} mode: {})",
-                            theme.name,
-                            r.pid,
-                            r.mode,
-                            r.path.display()
-                        ),
-                        Err(e) => format!("Run failed: {e}"),
-                    };
+                    if themes.is_empty() {
+                        if let Some(u) = event_ui.upgrade() { u.set_status_text("Check one or more themes first".into()); }
+                        continue;
+                    }
+                    let mut started = 0usize;
+                    let mut failures = 0usize;
+                    for theme in &themes {
+                        if run_conky(Path::new(&theme.path), None, None).is_ok() { started += 1; } else { failures += 1; }
+                    }
+                    let status = format!("Started {started}/{} checked theme(s){}", themes.len(), if failures > 0 { format!("; {failures} failed") } else { String::new() });
                     let mut st = event_state.lock().unwrap();
                     st.themes = discover_themes();
                     if let Some(u) = event_ui.upgrade() {
@@ -2360,17 +2380,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 TrayAction::StopSelected => {
-                    let theme = {
+                    let themes = {
                         let st = event_state.lock().unwrap();
-                        selected_theme(&st)
+                        checked_themes(&st)
                     };
-                    let Some(theme) = theme else { continue };
-                    let cfg = PathBuf::from(&theme.path);
-                    let status = if stop_managed_theme(&cfg) {
-                        format!("Stopped {}", theme.name)
-                    } else {
-                        format!("{} is not managed by Conkio", theme.name)
-                    };
+                    if themes.is_empty() {
+                        if let Some(u) = event_ui.upgrade() { u.set_status_text("Check one or more themes first".into()); }
+                        continue;
+                    }
+                    let stopped = themes.iter().filter(|theme| stop_managed_theme(Path::new(&theme.path))).count();
+                    let status = format!("Stopped {stopped}/{} checked theme(s)", themes.len());
                     let mut st = event_state.lock().unwrap();
                     st.themes = discover_themes();
                     if let Some(u) = event_ui.upgrade() {

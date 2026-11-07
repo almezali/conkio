@@ -147,17 +147,17 @@ It is built with **Rust** for speed and safety and **Slint** for a smooth, GPU-f
 
 Grab the package for your distribution from the [**latest release**](https://github.com/almezali/conkio/releases/latest).
 
-### Downloads (v1.0.1-3)
+### Downloads (v1.0.3)
 
 | Distribution | Architecture | Package |
 |---|---|---|
-| **Arch Linux** · Manjaro · EndeavourOS | x86_64 | [`conkio-1.0.1-3-x86_64.pkg.tar.zst`](https://github.com/almezali/conkio/releases/download/1.0.1/conkio-1.0.1-3-x86_64.pkg.tar.zst) |
-| | aarch64 | [`conkio-1.0.1-3-aarch64.pkg.tar.zst`](https://github.com/almezali/conkio/releases/download/1.0.1/conkio-1.0.1-3-aarch64.pkg.tar.zst) |
-| **Fedora** · RHEL family · openSUSE | x86_64 | [`conkio-1.0.1-3.x86_64.rpm`](https://github.com/almezali/conkio/releases/download/1.0.1/conkio-1.0.1-3.x86_64.rpm) |
-| | aarch64 | [`conkio-1.0.1-3.aarch64.rpm`](https://github.com/almezali/conkio/releases/download/1.0.1/conkio-1.0.1-3.aarch64.rpm) |
-| **Debian** · Ubuntu · Linux Mint · Pop!_OS | x86_64 | [`conkio_1.0.1-3_x86_64.deb`](https://github.com/almezali/conkio/releases/download/1.0.1/conkio_1.0.1-3_x86_64.deb) |
-| | aarch64 | [`conkio_1.0.1-3_aarch64.deb`](https://github.com/almezali/conkio/releases/download/1.0.1/conkio_1.0.1-3_aarch64.deb) |
-| **Any distribution** (portable) | x86_64 | [`Conkio-x86_64.AppImage`](https://github.com/almezali/conkio/releases/download/1.0.1/Conkio-x86_64.AppImage) |
+| **Arch Linux** · Manjaro · EndeavourOS | x86_64 | [`conkio-1.0.3-1-x86_64.pkg.tar.zst`](https://github.com/almezali/conkio/releases/download/1.0.3/conkio-1.0.3-1-x86_64.pkg.tar.zst) |
+| | aarch64 | [`conkio-1.0.3-1-aarch64.pkg.tar.zst`](https://github.com/almezali/conkio/releases/download/1.0.3/conkio-1.0.3-1-aarch64.pkg.tar.zst) |
+| **Fedora** · RHEL family · openSUSE | x86_64 | [`conkio-1.0.3-1.x86_64.rpm`](https://github.com/almezali/conkio/releases/download/1.0.3/conkio-1.0.3-1.x86_64.rpm) |
+| | aarch64 | [`conkio-1.0.3-1.aarch64.rpm`](https://github.com/almezali/conkio/releases/download/1.0.3/conkio-1.0.3-1.aarch64.rpm) |
+| **Debian** · Ubuntu · Linux Mint · Pop!_OS | x86_64 | [`conkio_1.0.3-1_x86_64.deb`](https://github.com/almezali/conkio/releases/download/1.0.3/conkio_1.0.3-1_x86_64.deb) |
+| | aarch64 | [`conkio_1.0.3-1_aarch64.deb`](https://github.com/almezali/conkio/releases/download/1.0.3/conkio_1.0.3-1_aarch64.deb) |
+| **Any distribution** (portable) | x86_64 | [`Conkio-x86_64.AppImage`](https://github.com/almezali/conkio/releases/download/1.0.3/Conkio-x86_64.AppImage) |
 
 > 💡 Not sure which architecture you have? Run `uname -m` — `x86_64` is a regular 64-bit PC, `aarch64` is ARM64.
 
@@ -165,10 +165,10 @@ Grab the package for your distribution from the [**latest release**](https://git
 
 ```bash
 # Download (x86_64)
-wget https://github.com/almezali/conkio/releases/download/1.0.1/conkio-1.0.1-3-x86_64.pkg.tar.zst
+wget https://github.com/almezali/conkio/releases/download/1.0.3/conkio-1.0.3-1-x86_64.pkg.tar.zst
 
 # Install (pacman pulls in dependencies such as conky automatically if declared)
-sudo pacman -U conkio-1.0.1-3-x86_64.pkg.tar.zst
+sudo pacman -U conkio-1.0.3-1-x86_64.pkg.tar.zst
 
 # Conky itself is required
 sudo pacman -S --needed conky
@@ -177,8 +177,8 @@ sudo pacman -S --needed conky
 ### 🎩 Fedora / RHEL / Nobara
 
 ```bash
-wget https://github.com/almezali/conkio/releases/download/1.0.1/conkio-1.0.1-3.x86_64.rpm
-sudo dnf install ./conkio-1.0.1-3.x86_64.rpm
+wget https://github.com/almezali/conkio/releases/download/1.0.3/conkio-1.0.3-1.x86_64.rpm
+sudo dnf install ./conkio-1.0.3-1.x86_64.rpm
 
 # Conky itself is required
 sudo dnf install conky
@@ -187,8 +187,8 @@ sudo dnf install conky
 ### 🦎 openSUSE
 
 ```bash
-wget https://github.com/almezali/conkio/releases/download/1.0.1/conkio-1.0.1-3.x86_64.rpm
-sudo zypper install --allow-unsigned-rpm ./conkio-1.0.1-3.x86_64.rpm
+wget https://github.com/almezali/conkio/releases/download/1.0.3/conkio-1.0.3-1.x86_64.rpm
+sudo zypper install --allow-unsigned-rpm ./conkio-1.0.3-1.x86_64.rpm
 
 sudo zypper install conky
 ```
@@ -211,7 +211,7 @@ For repository setup and maintainer instructions, see [docs/apt-repository.md](d
 ### 📦 AppImage (any distribution)
 
 ```bash
-wget https://github.com/almezali/conkio/releases/download/1.0.1/Conkio-x86_64.AppImage
+wget https://github.com/almezali/conkio/releases/download/1.0.3/Conkio-x86_64.AppImage
 chmod +x Conkio-x86_64.AppImage
 ./Conkio-x86_64.AppImage
 ```

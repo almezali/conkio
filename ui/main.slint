@@ -120,7 +120,7 @@ component NavButton inherits Rectangle {
 
 component SearchField inherits Rectangle {
     in-out property <string> text;
-    in property <string> placeholder: "Search";
+    in property <string> placeholder: @tr("Search");
     callback edited(string);
     callback accepted(string);
     height: 38px;
@@ -454,7 +454,7 @@ component PageCard inherits Rectangle {
 //  Marketplace window (mirrors the Conky Manager GTK marketplace)
 // ─────────────────────────────────────────────────────────────
 export component MarketplaceWindow inherits Window {
-    title: "Theme Marketplace";
+    title: @tr("Theme Marketplace");
     min-width: 560px;
     min-height: 480px;
     preferred-width: 1040px;
@@ -471,7 +471,7 @@ export component MarketplaceWindow inherits Window {
     in-out property <int> sort-index: 0;
     in-out property <int> category-index: 0;
     in-out property <string> query;
-    in property <string> detail-title: "Select a theme";
+    in property <string> detail-title: @tr("Select a theme");
     in property <string> detail-desc: "Choose a result to inspect its description, author, version, and store page.";
     in property <string> detail-meta;
     in property <string> link-label: "Open store in browser";
@@ -519,7 +519,7 @@ export component MarketplaceWindow inherits Window {
             SearchField {
                 horizontal-stretch: 1;
                 min-width: 160px;
-                placeholder: "Search themes, authors, or keywords…";
+                placeholder: @tr("Search themes, authors, or keywords…");
                 text <=> root.query;
                 edited(t) => { root.search-edited(t); }
                 accepted(t) => { root.search(t); }
@@ -534,7 +534,7 @@ export component MarketplaceWindow inherits Window {
                 Dropdown { model: root.categories; current-index <=> root.category-index; selected(i) => { root.category-changed(i); } }
             }
             SearchField {
-                placeholder: "Search themes, authors, or keywords…";
+                placeholder: @tr("Search themes, authors, or keywords…");
                 text <=> root.query;
                 edited(t) => { root.search-edited(t); }
                 accepted(t) => { root.search(t); }
@@ -605,7 +605,7 @@ export component MarketplaceWindow inherits Window {
 //  Download progress window
 // ─────────────────────────────────────────────────────────────
 export component DownloadWindow inherits Window {
-    title: "Downloading Theme";
+    title: @tr("Downloading Theme");
     min-width: 420px;
     min-height: 200px;
     preferred-width: 500px;
@@ -650,7 +650,7 @@ export component DownloadWindow inherits Window {
 //  Settings window
 // ─────────────────────────────────────────────────────────────
 export component SettingsWindow inherits Window {
-    title: "Conkio Settings";
+    title: @tr("Conkio Settings");
     min-width: 440px;
     min-height: 440px;
     preferred-width: 620px;
@@ -693,8 +693,8 @@ export component SettingsWindow inherits Window {
         }
         Rectangle { height: 8px; }
         SettingRow {
-            title: "Appearance";
-            subtitle: "Choose between the dark and light interface";
+            title: @tr("Appearance");
+            subtitle: @tr("Choose between the dark and light interface");
             Rectangle {
                 width: 150px; height: 34px; border-radius: 10px;
                 background: Pal.surface-2;
@@ -718,18 +718,18 @@ export component SettingsWindow inherits Window {
             }
         }
         SettingRow {
-            title: "Theme folder";
+            title: @tr("Theme folder");
             subtitle: root.theme-directory;
             AppButton { text: "Add folder"; clicked => { root.add-theme-folder(); } }
         }
         SettingRow {
-            title: "Desktop environment / window manager";
+            title: @tr("Desktop environment / window manager");
             subtitle: root.desktop-info;
             Dropdown { model: root.desktop-options; current-index: 0; selected(i) => { root.desktop-preset = root.desktop-options[i]; } }
         }
         SettingRow {
-            title: "Conky window behavior";
-            subtitle: "Layer and window type used when launching themes";
+            title: @tr("Conky window behavior");
+            subtitle: @tr("Layer and window type used when launching themes");
             HorizontalLayout {
                 spacing: 6px;
                 Dropdown { model: root.layer-options; current-index: 0; selected(i) => { root.layer = root.layer-options[i]; } }
@@ -737,8 +737,8 @@ export component SettingsWindow inherits Window {
             }
         }
         SettingRow {
-            title: "Performance and preview";
-            subtitle: "Smoothness, process priority, instance limit and preview duration";
+            title: @tr("Performance and preview");
+            subtitle: @tr("Smoothness, process priority, instance limit and preview duration");
             HorizontalLayout {
                 spacing: 6px;
                 Dropdown { model: root.smoothness-options; current-index: 0; selected(i) => { root.smoothness = root.smoothness-options[i]; } }
@@ -751,13 +751,13 @@ export component SettingsWindow inherits Window {
             }
         }
         SettingRow {
-            title: "Start Conky themes with desktop session";
-            subtitle: "Launch the last profile automatically at login";
+            title: @tr("Start Conky themes with desktop session");
+            subtitle: @tr("Launch the last profile automatically at login");
             Toggle { checked <=> root.login-autostart; toggled(v) => { root.login-toggled(v); } }
         }
         SettingRow {
-            title: "Minimize Conkio to the system tray";
-            subtitle: "Keep Conkio running quietly in the background";
+            title: @tr("Minimize Conkio to the system tray");
+            subtitle: @tr("Keep Conkio running quietly in the background");
             Toggle { checked <=> root.minimize-to-tray; toggled(v) => { root.tray-toggled(v); } }
         }
         Rectangle { vertical-stretch: 1; }
@@ -775,7 +775,7 @@ export component SettingsWindow inherits Window {
 //  About window
 // ─────────────────────────────────────────────────────────────
 export component AboutWindow inherits Window {
-    title: "About Conkio";
+    title: @tr("About Conkio");
     min-width: 380px;
     min-height: 340px;
     preferred-width: 460px;
@@ -826,7 +826,7 @@ export component PromptWindow inherits Window {
         padding: 22px;
         spacing: 12px;
         Text { text: root.prompt-label; color: Pal.text; font-size: 16px; font-weight: 700; }
-        SearchField { text <=> root.prompt-value; placeholder: "Type a name…"; }
+        SearchField { text <=> root.prompt-value; placeholder: @tr("Type a name…"); }
         Rectangle { vertical-stretch: 1; }
         HorizontalLayout {
             spacing: 10px;
@@ -841,7 +841,7 @@ export component PromptWindow inherits Window {
 //  Main window
 // ─────────────────────────────────────────────────────────────
 export component ConkioWindow inherits Window {
-    title: "Conkio";
+    title: @tr("Conkio");
     // Resizable + adaptive: preferred-* (not width/height) keeps the window freely resizable.
     min-width: 640px;
     min-height: 480px;
@@ -849,7 +849,7 @@ export component ConkioWindow inherits Window {
     preferred-height: 620px;
     background: Pal.bg;
 
-    in-out property <string> page-title: "Themes";
+    in-out property <string> page-title: @tr("Themes");
     in property <string> status-text: "Ready";
     in property <string> conky-version: "Checking Conky…";
     in property <string> search-text;
@@ -1029,7 +1029,7 @@ export component ConkioWindow inherits Window {
                             min-width: 130px;
                             preferred-width: 250px;
                             max-width: 300px;
-                            placeholder: "Search themes…";
+                            placeholder: @tr("Search themes…");
                             text: root.search-text;
                             edited(t) => { root.search-changed(t); }
                         }
@@ -1071,8 +1071,8 @@ export component ConkioWindow inherits Window {
                     }
                     if root.themes.length == 0 : EmptyState {
                         icon: "◈";
-                        title: "No themes found";
-                        subtitle: "Import a folder or an archive to add your first Conky theme.";
+                        title: @tr("No themes found");
+                        subtitle: @tr("Import a folder or an archive to add your first Conky theme.");
                     }
                 }
                 if root.context-visible : Rectangle {
@@ -1148,8 +1148,8 @@ export component ConkioWindow inherits Window {
                     }
                     if root.themes.length == 0 : EmptyState {
                         icon: "▶";
-                        title: "Running themes";
-                        subtitle: "Start a theme and it will appear here.";
+                        title: @tr("Running themes");
+                        subtitle: @tr("Start a theme and it will appear here.");
                     }
                 }
                 if root.page-title == "Running" : Rectangle {
@@ -1182,8 +1182,8 @@ export component ConkioWindow inherits Window {
                     }
                     if root.themes.length == 0 : EmptyState {
                         icon: "✚";
-                        title: "Theme health scan";
-                        subtitle: "Stable, needs-fix and broken indicators are shown on every theme.";
+                        title: @tr("Theme health scan");
+                        subtitle: @tr("Stable, needs-fix and broken indicators are shown on every theme.");
                     }
                 }
                 if root.page-title == "Health" : Rectangle {
@@ -1288,8 +1288,8 @@ export component ConkioWindow inherits Window {
                         spacing: 14px;
                         EmptyState {
                             icon: "☰";
-                            title: "Desktop profiles";
-                            subtitle: "Save and restore groups of themes for different workflows.";
+                            title: @tr("Desktop profiles");
+                            subtitle: @tr("Save and restore groups of themes for different workflows.");
                             HorizontalLayout {
                                 alignment: center;
                                 padding-top: 6px;

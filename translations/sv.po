@@ -1,0 +1,168 @@
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Conkio\n"
+"POT-Creation-Date: 2026-11-09 14:43+0000\n"
+"PO-Revision-Date: 2026-11-09 00:00+0000\n"
+"Last-Translator: Swedish translation team\n"
+"Language-Team: Swedish\n"
+"Language: sv\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: ui/main.slint:123
+msgctxt "SearchField"
+msgid "Search"
+msgstr "Sök"
+
+#: ui/main.slint:457
+msgctxt "MarketplaceWindow"
+msgid "Theme Marketplace"
+msgstr "Temamarknad"
+
+#: ui/main.slint:474
+msgctxt "MarketplaceWindow"
+msgid "Select a theme"
+msgstr "Välj ett tema"
+
+#: ui/main.slint:522 ui/main.slint:537
+msgctxt "MarketplaceWindow"
+msgid "Search themes, authors, or keywords…"
+msgstr "Sök efter teman, upphovspersoner eller nyckelord …"
+
+#: ui/main.slint:608
+msgctxt "DownloadWindow"
+msgid "Downloading Theme"
+msgstr "Hämtar tema"
+
+#: ui/main.slint:653
+msgctxt "SettingsWindow"
+msgid "Conkio Settings"
+msgstr "Inställningar för Conkio"
+
+#: ui/main.slint:696
+msgctxt "SettingsWindow"
+msgid "Appearance"
+msgstr "Utseende"
+
+#: ui/main.slint:697
+msgctxt "SettingsWindow"
+msgid "Choose between the dark and light interface"
+msgstr "Välj mellan mörkt och ljust gränssnitt"
+
+#: ui/main.slint:721
+msgctxt "SettingsWindow"
+msgid "Theme folder"
+msgstr "Temamapp"
+
+#: ui/main.slint:726
+msgctxt "SettingsWindow"
+msgid "Desktop environment / window manager"
+msgstr "Skrivbordsmiljö/fönsterhanterare"
+
+#: ui/main.slint:731
+msgctxt "SettingsWindow"
+msgid "Conky window behavior"
+msgstr "Conky-fönstrets beteende"
+
+#: ui/main.slint:732
+msgctxt "SettingsWindow"
+msgid "Layer and window type used when launching themes"
+msgstr "Lager och fönstertyp som används när teman startas"
+
+#: ui/main.slint:740
+msgctxt "SettingsWindow"
+msgid "Performance and preview"
+msgstr "Prestanda och förhandsvisning"
+
+#: ui/main.slint:741
+msgctxt "SettingsWindow"
+msgid "Smoothness, process priority, instance limit and preview duration"
+msgstr "Mjukhet, processprioritet, instansgräns och förhandsvisningens längd"
+
+#: ui/main.slint:754
+msgctxt "SettingsWindow"
+msgid "Start Conky themes with desktop session"
+msgstr "Starta Conky-teman med skrivbordssessionen"
+
+#: ui/main.slint:755
+msgctxt "SettingsWindow"
+msgid "Launch the last profile automatically at login"
+msgstr "Starta den senaste profilen automatiskt vid inloggning"
+
+#: ui/main.slint:759
+msgctxt "SettingsWindow"
+msgid "Minimize Conkio to the system tray"
+msgstr "Minimera Conkio till aktivitetsfältet"
+
+#: ui/main.slint:760
+msgctxt "SettingsWindow"
+msgid "Keep Conkio running quietly in the background"
+msgstr "Låt Conkio köras tyst i bakgrunden"
+
+#: ui/main.slint:778
+msgctxt "AboutWindow"
+msgid "About Conkio"
+msgstr "Om Conkio"
+
+#: ui/main.slint:829
+msgctxt "PromptWindow"
+msgid "Type a name…"
+msgstr "Skriv ett namn …"
+
+#: ui/main.slint:844
+msgctxt "ConkioWindow"
+msgid "Conkio"
+msgstr "Conkio"
+
+#: ui/main.slint:852
+msgctxt "ConkioWindow"
+msgid "Themes"
+msgstr "Teman"
+
+#: ui/main.slint:1032
+msgctxt "ConkioWindow"
+msgid "Search themes…"
+msgstr "Sök efter teman …"
+
+#: ui/main.slint:1074
+msgctxt "ConkioWindow"
+msgid "No themes found"
+msgstr "Inga teman hittades"
+
+#: ui/main.slint:1075
+msgctxt "ConkioWindow"
+msgid "Import a folder or an archive to add your first Conky theme."
+msgstr "Importera en mapp eller ett arkiv för att lägga till ditt första Conky-tema."
+
+#: ui/main.slint:1151
+msgctxt "ConkioWindow"
+msgid "Running themes"
+msgstr "Aktiva teman"
+
+#: ui/main.slint:1152
+msgctxt "ConkioWindow"
+msgid "Start a theme and it will appear here."
+msgstr "Starta ett tema så visas det här."
+
+#: ui/main.slint:1185
+msgctxt "ConkioWindow"
+msgid "Theme health scan"
+msgstr "Temakontroll"
+
+#: ui/main.slint:1186
+msgctxt "ConkioWindow"
+msgid "Stable, needs-fix and broken indicators are shown on every theme."
+msgstr "Indikatorer för stabilt, behöver åtgärdas och trasigt visas för varje tema."
+
+#: ui/main.slint:1291
+msgctxt "ConkioWindow"
+msgid "Desktop profiles"
+msgstr "Skrivbordsprofiler"
+
+#: ui/main.slint:1292
+msgctxt "ConkioWindow"
+msgid "Save and restore groups of themes for different workflows."
+msgstr "Spara och återställ grupper av teman för olika arbetsflöden."

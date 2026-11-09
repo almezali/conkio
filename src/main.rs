@@ -1089,6 +1089,10 @@ fn start_download(ctx: DownloadCtx, title: String, store_index: i32, product_id:
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Slint selects the gettext catalog that matches the desktop locale.
+    // Distribution packages install the compiled Swedish catalog below this
+    // directory as sv/LC_MESSAGES/conkio.mo.
+    slint::init_translations!(concat!(env!("CARGO_MANIFEST_DIR"), "/translations"));
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--version" || a == "-v") {
         println!("Conkio {}", VERSION);
